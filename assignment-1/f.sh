@@ -1,0 +1,1 @@
+cut -d\  -f$1 $2 | sed 's/[^|]*/\L&/' | sort | uniq -c | sort -rn | awk '{print $2"\t"$1}' > 1f_output_$1_column.freq
