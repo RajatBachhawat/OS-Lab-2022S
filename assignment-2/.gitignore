@@ -1,0 +1,9 @@
+*
+!*/
+!*.*
+!Makefile
+
+.vscode/
+*.o
+*.so
+*.a
