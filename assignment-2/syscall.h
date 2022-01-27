@@ -1,3 +1,5 @@
+#ifndef SYS_CALL
+#define SYS_CALL
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,10 +10,111 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <fcntl.h>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+using namespace std;
 
 #define MAXARGS 128
 #define MAXLINE 200
+#define HISTSIZE 100000
+#define DSPLHISTSIZE 1000
 
+inline int getCharMap(char ch);
+extern unordered_map<char,int>charDict;
+/* Data Structures */
+struct node 
+{
+    node* child[100];
+    int index;
+    vector<int>indices;
+    node():index(-1)
+    {
+        for(int i = 0; i<100; i++)
+            child[i]=NULL;
+    }
+    node(int ind):index(ind)
+    {
+        for(int i = 0; i<100; i++)
+            child[i]=NULL;
+
+    }
+};
+
+struct trie 
+{
+    node* root;
+    trie()
+    {
+        root = new node();
+    }
+    void add(string& s, int ind)
+    {
+        node* curr = root;
+        size_t sz = s.size();   
+        for(int i=0; i<sz;i++)
+        {
+            
+            int x = getCharMap(s[i]);
+            if(curr->child[x]==NULL)
+            {
+                curr->child[x] =  new node(ind);
+                
+            }
+            else 
+            {
+                if(ind>(curr->child[x])->index)
+                    (curr->child[x])->index = ind;
+            }
+            curr = curr->child[x];
+            curr->indices.push_back(ind);
+        }
+    }
+    int search(string& s)
+    {
+        node* curr = root;
+        size_t sz = s.size();   
+        for(int i=0; i<sz;i++)
+        {
+            int x = getCharMap(s[i]);
+            if(curr->child[x]==NULL)
+            {
+                return -1;
+            }
+            curr = curr->child[x];
+        }   
+        return curr->index;
+    }
+    void searchMult(string &s, int& maxlen,  vector<int>&maxindices)
+    {
+        node* curr = root;
+        size_t sz = s.size();   
+        for(int i=0; i<sz;i++)
+        {
+            int x = getCharMap(s[i]);
+            if(curr->child[x]==NULL)
+            {
+                return;
+            }
+            curr = curr->child[x];
+            if(i+1==maxlen)
+            {
+                maxindices.insert(maxindices.end(), curr->indices.begin(), curr->indices.end());
+
+            }
+            else 
+            if(i+1>maxlen)
+            {
+                maxlen = i+1;
+                maxindices = curr->indices;
+            }
+        }   
+        return;
+    }
+};
 /* Our own error-handling functions */
 void unix_error(const char *msg);
 void app_error(const char *msg);
@@ -38,3 +141,20 @@ void Execve(const char *filename, char *const argv[], char *const envp[]);
 pid_t Wait(int *status);
 pid_t Waitpid(pid_t pid, int *iptr, int options);
 void Kill(pid_t pid, int signum);
+
+// Functions for history
+void startShell(vector<string>& comms);
+void stopShell(vector<string>& comms);
+void displayHist(vector<string>& comms);
+void addToHist(vector<string>& comms, string& command);
+void searchInHist(vector<string>& comms);
+void addsubstrs(string& s, int ind);
+inline int getCharMap(char ch)
+{
+    if(ch>='A' && ch<='Z')
+        ch+='a'-'A';
+    if(ch>='a' && ch<='z')  
+        return ch-'a';
+    return charDict[ch];
+}
+#endif

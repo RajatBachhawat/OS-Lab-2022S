@@ -1,5 +1,13 @@
 #include "syscall.h"
 
+
+
+/* Data Structures*/
+
+trie historyTrie;
+unordered_map<char,int>charDict;
+
+
 /************************** 
  * Error-handling functions
  **************************/
@@ -224,4 +232,115 @@ void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
     if (fwrite(ptr, size, nmemb, stream) < nmemb)
 	unix_error("Fwrite error");
+}
+
+void startShell(vector<string>&comms)
+{
+    // Initialising Character Dictionary
+    string allchars = "1234567890!@#$%^&*()-=[];',./_+{}:\"<>?|\\ \n";
+    for(int i = 0; i<allchars.size();i++)
+        charDict[allchars[i]]=26+i;
+    // Opening File
+    fstream historyFile;
+    historyFile.open("history.txt", ios::in);
+    string curr;
+    while(getline(historyFile,curr))
+    {
+        comms.push_back(curr);
+       // cout<<curr<<"\n";
+    }
+    int n = comms.size();
+    for(int i=0; i<n/2;i++)
+    {
+        swap(comms[i],comms[n-i-1]);
+    }
+    for(int i =0; i<comms.size();i++)
+    {
+        addsubstrs(comms[i],i);
+    }
+
+}
+
+void stopShell(vector<string>&comms)
+{
+    fstream historyFile;
+    historyFile.open("history.txt", ios::out);
+    string curr;
+    int count = HISTSIZE;
+    while(comms.size()>0 && count--)
+    {
+        historyFile<<comms.back()<<"\n";
+        comms.pop_back();
+        
+    }
+
+}
+
+void addsubstrs(string& s, int ind)
+{
+    size_t n = s.size();
+    for(int i=0;i <n; i++)
+    {
+        string suffix = s.substr(i,n-i);
+        historyTrie.add(suffix,ind);
+    }
+}
+
+void displayHist(vector<string>& comms)
+{
+    size_t sz = comms.size();
+    int total = max(0,(int)sz-DSPLHISTSIZE);
+    for(int i = total ; i< sz; i++)
+    {
+        cout<<sz-i<<": "<<comms[i]<<"\n";
+    }
+}
+void addToHist(vector<string>& comms, string& command)
+{
+    if(command.size()==1)
+        return;
+    command = command.substr(0,command.size()-1);
+    comms.push_back(command);
+    addsubstrs(command,comms.size()-1);
+}
+void searchInHist(vector<string>& comms)
+{
+    string searchstr;
+    cout<<"Enter Search String: ";
+    getline(cin,searchstr);
+    int ind = historyTrie.search(searchstr);
+    if(ind==-1 || ind<comms.size()-HISTSIZE) // Also add if minimum index not in top 100000
+    {
+        vector<int>maxinds;
+        int maxlen = 0;
+        for(int i=0;i<searchstr.size();i++)
+        {
+            string searchval = searchstr.substr(i,searchstr.size()-i);
+            historyTrie.searchMult(searchval,maxlen,maxinds);
+        }
+        bool currpresent = 0;
+        if(maxlen <=2)
+        {
+            cout<<"Command Not Found\n";
+        }
+        else 
+        {
+            bool present = false;   
+            unordered_map<int,int>alreadyPresent;
+            for(auto it:maxinds)
+            {
+                if(it>=comms.size()-HISTSIZE && !alreadyPresent[it])
+                    cout<<comms[it]<<"\n",currpresent = true,alreadyPresent[it]=1;
+            }
+            if(currpresent)
+                cout<<"Maximum length of substring match: "<<maxlen<<"\n";
+            else 
+                cout<<"Command Not Found\n";
+        }
+    }
+    else 
+    {
+        cout<<"Exact Match Found\nCommand: "<<comms[ind]<<"\n";
+    }
+   
 }

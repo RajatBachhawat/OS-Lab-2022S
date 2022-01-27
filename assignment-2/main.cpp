@@ -3,6 +3,8 @@
 
 pid_t pidout;
 int verbose = 0;
+vector<string>commands;
+
 
 struct cmdlineProps 
 {   
@@ -86,10 +88,12 @@ int main()
     Signal(SIGCHLD, sigchld_handler);
 
     char cmdline[MAXLINE]; /* Command line */
-    
+    startShell(commands);
+
     while (1)
     {
         /* Read */
+        
         
         printf("\n> ");
         char *rptr;
@@ -99,10 +103,17 @@ int main()
 
         if (feof(stdin))
             exit(0);
-
+        if(strcmp(cmdline,"quit\n")==0)
+            break;
+        
+        /* Add to history*/
+        string command(cmdline);
+        
+        addToHist(commands,command);
         /* Evaluate */
         eval(cmdline);
     }
+    stopShell(commands);
 }
 /* $end shellmain */
 
@@ -121,6 +132,7 @@ void eval(char *cmdline)
     // Forking to run entire command
     if((pidout = Fork())==0)
     {
+        
         char* pipeloc;
         int commandInPipe = 0;
         int pipefd[2];
@@ -180,11 +192,19 @@ void eval(char *cmdline)
                 if(prop.wfd != STDOUT_FILENO) Close(prop.wfd);
                 
                 /* Child runs user job */
+                if(strcmp(argv[0],"history")==0)
+                {
+                   
+                    displayHist(commands);
+                    searchInHist(commands);
+                    exit(0);
+                }
                 if (execvp(argv[0], argv) < 0)
                 {
                     printf("%s: Command not found.\n", argv[0]);
                     exit(0);
                 }
+                
             }
             int status;
             Waitpid(pid, &status, 0);
