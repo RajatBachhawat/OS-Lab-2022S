@@ -1,5 +1,6 @@
 /* $begin shellmain */
 #include "syscall.h"
+#include <readline/readline.h>
 
 pid_t pidout;
 int verbose = 0;
@@ -79,29 +80,75 @@ void sigchld_handler(int sig)
     return;
 }
 
+int autocomplete(int count, int key){
+    char ch;
+    char candidate[MAXLINE];
+    char *buf;
+    
+    char *ptr = rl_line_buffer;
+    char prevch = '\0';
+    while(ch!='\0'){
+        ch = *ptr;
+        if(isspace(prevch) && !isspace(ch)){
+            buf = ptr;
+        }
+        prevch = ch;
+        ptr++;
+    }
+
+    int num_matches = 0;
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
+            if(dir->d_type == DT_REG){
+                char *filename = dir->d_name;
+                if(strstr(filename, buf) - filename == 0){
+                    strcpy(candidate, filename);
+                    num_matches++;
+                }
+            }
+        }
+        closedir(d);
+    }
+    if(num_matches == 1){
+        printf("%s",(candidate + strlen(buf)));
+        strcpy(buf, candidate);
+    }
+    return 1;
+}
+
 int main()
 {
     Signal(SIGINT, SIG_IGN); /* ctrl-c */
     Signal(SIGTSTP, SIG_IGN); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);
-
-    char cmdline[MAXLINE]; /* Command line */
     
     while (1)
     {
-        /* Read */
-        
-        printf("\n> ");
-        char *rptr;
-        if(((rptr = fgets(cmdline, MAXLINE, stdin)) == NULL) && ferror(stdin)){
-            app_error("fgets error");
+        char *cmdline; /* Command line */
+        rl_bind_key('\t', &autocomplete);
+
+        while (1)
+        {
+            /* Read */
+            cmdline = readline("\033[1;33mwish> \033[0m");
+
+            if(!cmdline){ /* Blank line and EOF */
+                printf("\n");
+                exit(0);
+            }
+            
+            strncat(cmdline,"\n",2);
+
+            /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
+            if(strlen(cmdline) > 1)
+                eval(cmdline);
+            
+            free(cmdline);
         }
-
-        if (feof(stdin))
-            exit(0);
-
-        /* Evaluate */
-        eval(cmdline);
     }
 }
 /* $end shellmain */

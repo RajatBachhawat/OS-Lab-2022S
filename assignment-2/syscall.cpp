@@ -166,62 +166,35 @@ void Fstat(int fd, struct stat *buf)
 	unix_error("Fstat error");
 }
 
-/******************************************
- * Wrappers for the Standard I/O functions.
- ******************************************/
-void Fclose(FILE *fp) 
+/*********************************
+ * Wrappers for directory function
+ *********************************/
+
+DIR *Opendir(const char *name) 
 {
-    if (fclose(fp) != 0)
-	unix_error("Fclose error");
+    DIR *dirp = opendir(name); 
+
+    if (!dirp)
+        unix_error("opendir error");
+    return dirp;
 }
 
-FILE *Fdopen(int fd, const char *type) 
+struct dirent *Readdir(DIR *dirp)
 {
-    FILE *fp;
-
-    if ((fp = fdopen(fd, type)) == NULL)
-	unix_error("Fdopen error");
-
-    return fp;
+    struct dirent *dep;
+    
+    errno = 0;
+    dep = readdir(dirp);
+    if ((dep == NULL) && (errno != 0))
+        unix_error("readdir error");
+    return dep;
 }
 
-char *Fgets(char *ptr, int n, FILE *stream) 
+int Closedir(DIR *dirp) 
 {
-    char *rptr;
+    int rc;
 
-    if (((rptr = fgets(ptr, n, stream)) == NULL) && ferror(stream))
-	app_error("Fgets error");
-
-    return rptr;
-}
-
-FILE *Fopen(const char *filename, const char *mode) 
-{
-    FILE *fp;
-
-    if ((fp = fopen(filename, mode)) == NULL)
-	unix_error("Fopen error");
-
-    return fp;
-}
-
-void Fputs(const char *ptr, FILE *stream) 
-{
-    if (fputs(ptr, stream) == EOF)
-	unix_error("Fputs error");
-}
-
-size_t Fread(void *ptr, size_t size, size_t nmemb, FILE *stream) 
-{
-    size_t n;
-
-    if (((n = fread(ptr, size, nmemb, stream)) < nmemb) && ferror(stream)) 
-	unix_error("Fread error");
-    return n;
-}
-
-void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) 
-{
-    if (fwrite(ptr, size, nmemb, stream) < nmemb)
-	unix_error("Fwrite error");
+    if ((rc = closedir(dirp)) < 0)
+        unix_error("closedir error");
+    return rc;
 }

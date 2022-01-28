@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <fcntl.h>
+#include <dirent.h>
+#include <termios.h>
 
 #define MAXARGS 128
 #define MAXLINE 200
@@ -38,3 +40,8 @@ void Execve(const char *filename, char *const argv[], char *const envp[]);
 pid_t Wait(int *status);
 pid_t Waitpid(pid_t pid, int *iptr, int options);
 void Kill(pid_t pid, int signum);
+
+/* Directory wrappers */
+DIR *Opendir(const char *name);
+struct dirent *Readdir(DIR *dirp);
+int Closedir(DIR *dirp);
