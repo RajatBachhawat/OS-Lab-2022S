@@ -4,6 +4,8 @@
 
 pid_t pidout;
 int verbose = 0;
+vector<string> commands;
+
 
 struct cmdlineProps 
 {   
@@ -86,6 +88,7 @@ int autocomplete(int count, int key){
     char *buf;
     
     char *ptr = rl_line_buffer;
+    buf = ptr;
     char prevch = '\0';
     while(ch!='\0'){
         ch = *ptr;
@@ -126,30 +129,39 @@ int main()
     Signal(SIGTSTP, SIG_IGN); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);
     
+    char *cmdline; /* Command line */
+    rl_bind_key('\t', &autocomplete);
+    rl_bind_key(18, &searchInHist);
+
+    startShell(commands);
+
     while (1)
     {
-        char *cmdline; /* Command line */
-        rl_bind_key('\t', &autocomplete);
+        /* Read */
+        cmdline = readline("\033[1;33mwish> \033[0m");
 
-        while (1)
-        {
-            /* Read */
-            cmdline = readline("\033[1;33mwish> \033[0m");
-
-            if(!cmdline){ /* Blank line and EOF */
-                printf("\n");
-                exit(0);
-            }
-            
-            strncat(cmdline,"\n",2);
-
-            /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
-            if(strlen(cmdline) > 1)
-                eval(cmdline);
-            
-            free(cmdline);
+        if(!cmdline){ /* Blank line and EOF */
+            printf("\n");
+            exit(0);
         }
+        
+        strncat(cmdline,"\n",2);
+
+        if(strcmp(cmdline,"quit\n")==0)
+        break;
+    
+        /* Add to history*/
+        string command(cmdline);
+        
+        addToHist(commands,command);
+
+        /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
+        if(strlen(cmdline) > 1)
+            eval(cmdline);
+        
+        free(cmdline);
     }
+    stopShell(commands);
 }
 /* $end shellmain */
 
@@ -168,6 +180,7 @@ void eval(char *cmdline)
     // Forking to run entire command
     if((pidout = Fork())==0)
     {
+        
         char* pipeloc;
         int commandInPipe = 0;
         int pipefd[2];
@@ -227,11 +240,19 @@ void eval(char *cmdline)
                 if(prop.wfd != STDOUT_FILENO) Close(prop.wfd);
                 
                 /* Child runs user job */
+                if(strcmp(argv[0],"history")==0)
+                {
+                   
+                    displayHist(commands);
+                    searchInHist(0,0);
+                    exit(0);
+                }
                 if (execvp(argv[0], argv) < 0)
                 {
                     printf("%s: Command not found.\n", argv[0]);
                     exit(0);
                 }
+                
             }
             int status;
             Waitpid(pid, &status, 0);
