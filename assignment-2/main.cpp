@@ -1,6 +1,7 @@
 /* $begin shellmain */
 #include "syscall.h"
 #include <readline/readline.h>
+#include <poll.h>
 
 pid_t pidout;
 int verbose = 0;
@@ -13,10 +14,17 @@ struct cmdlineProps
     int wfd; 
     cmdlineProps() : rfd(STDIN_FILENO),wfd(STDOUT_FILENO) {}
 };
+struct watchCommand
+{
+    char* argv;
+    cmdlineProps prop;
+};
 
 /* Function prototypes */
 void eval(char *cmdline);
 void parseline(char *buf, char **argv, cmdlineProps &prop);
+int watchParser( char* buf, watchCommand* );
+void watcheval(int sz, watchCommand* wcs);
 
 /* 
  * sigint_handler - SIGINT handler. The kernel sends a SIGINT whenver
@@ -134,12 +142,16 @@ int main()
     rl_bind_key(18, &searchInHist);
 
     startShell(commands);
-
+    
+    // watchCommand wcs[1000];
+    // char killme[1000]="multiWatch [\"echo \"yay son\"\",\"echo bay\",\"sleep 5 | echo 50\", \"sleep 2 | echo 20\"]";
+    // int sz = watchParser(killme,wcs);
+    // watcheval(sz,wcs);
+    
     while (1)
     {
         /* Read */
         cmdline = readline("\033[1;33mwish> \033[0m");
-
         if(!cmdline){ /* Blank line and EOF */
             printf("\n");
             exit(0);
@@ -156,10 +168,14 @@ int main()
         addToHist(commands,command);
 
         /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
-        if(strlen(cmdline) > 1)
-            eval(cmdline);
+        // if(strlen(cmdline) > 1)
+        //     eval(cmdline);
+        watchCommand wcs[1000];
+        int sz = watchParser(cmdline,wcs);
+        watcheval(sz,wcs);
         
         free(cmdline);
+
     }
     stopShell(commands);
 }
@@ -180,15 +196,16 @@ void eval(char *cmdline)
     // Forking to run entire command
     if((pidout = Fork())==0)
     {
-        
-        char* pipeloc;
-        int commandInPipe = 0;
-        int pipefd[2];
-        
         if(!background){
             Signal(SIGINT, SIG_DFL);
             Signal(SIGTSTP, SIG_DFL);
         }
+
+        char* pipeloc;
+        int commandInPipe = 0;
+        int pipefd[2];
+        
+        
 
         while(1)
         {
@@ -289,6 +306,7 @@ void eval(char *cmdline)
 // Takes command in the form "<command>\n"
 void parseline(char *buf, char **argv, cmdlineProps &prop)
 {
+
     char *delim; /* Points to first space delimiter */
     int argc;    /* Number of args */
 
@@ -334,6 +352,7 @@ void parseline(char *buf, char **argv, cmdlineProps &prop)
             // Opening (creating if not existing) file to write after truncating
             // Permissions : -rw-r--r--
             prop.wfd = Open(words[wordind+1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            printf("%d WFD\n",prop.wfd);
             wordind++;
         }
         /* Input redirection : '<' and following word skipped for argv */
@@ -347,14 +366,137 @@ void parseline(char *buf, char **argv, cmdlineProps &prop)
         }
         else 
         {
+           
             argv[argvPos++]=word;
         }
     }
     
     argv[argvPos]=NULL;
-
+    
    
 
     return;
 }
+
 /* $end parseline */
+
+int watchParser(char* buf, watchCommand* wcs )
+{
+    int n = strlen(buf);
+    
+    int openQuote = 0;
+    int curCommand = -1;
+    int curPos = 0;
+    char command[MAXLINE];
+    char* startofWord;
+    int files[n]={0};
+    for(int ind = 0; ind < n; ind++)
+    {
+        if(buf[ind]=='\"' && openQuote ==0)
+        {
+            curCommand++;
+            curPos = 0;
+            openQuote = 1;
+            startofWord = buf+ind+1;
+        }
+        else 
+        if(buf[ind]=='\"' && openQuote == 1 && (buf[ind+1]==',' || buf[ind+1]==']'))
+        {
+            cmdlineProps curProp;
+            buf[ind]='\0';
+            buf[ind+1]='\0';
+            wcs[curCommand].argv = startofWord;
+            openQuote = 0;
+        }
+        
+        
+    }
+    return curCommand+1;
+}
+void watcheval(int sz, watchCommand* wcs)
+{
+   
+    int maxfiled = -1;
+    vector<string>filenames(sz);
+   for(int commandInd = 0; commandInd<sz; commandInd++)
+   {
+       pid_t pid;
+       
+       if( (pid = Fork())==0)
+       {
+           Signal(SIGINT, SIG_DFL);
+           Signal(SIGTSTP, SIG_DFL);
+           char doc[1000];
+           
+           sprintf(doc,"DocTemp%d",getpid());
+           filenames[commandInd] = doc;
+           
+           sprintf(doc,"%s\n",wcs[commandInd].argv);
+           printf("%s",doc);
+           
+            int timer = 2;
+           while(timer--)
+           {
+            eval(doc);
+            fprintf(stdout, "%u: ", (unsigned)time(NULL)); 
+            printf("%d\n",getpid());
+            sleep(1);
+           }
+           exit(0);
+       }
+       else 
+       {
+           char doc[1000];
+           sprintf(doc,"DocTemp%d",pid);
+           filenames[commandInd] = doc;
+       }
+      // sleep(1);
+      
+    }
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    struct pollfd  files[sz];
+    for(int cmdno =0; cmdno < sz; cmdno++)
+    {
+        const char * c = filenames[cmdno].c_str();
+       files[cmdno].fd = Open(c, O_WRONLY | O_CREAT | O_TRUNC, 0644); 
+       files[cmdno].events = POLL_IN;
+        // FD_SET(files[cmdno],&readfds);
+       printf("file descriptor: %d ",files[cmdno].fd);
+    }
+    printf("\n");
+   
+   
+    while(1)
+    {
+        int ret = poll(files, sz, -1);
+        for(int cmdno =0; cmdno < sz; cmdno++)
+        {
+            if(files[cmdno].revents && POLL_IN)
+            {
+                printf("Activity in file %d\n",files[cmdno].fd);
+            }
+            files[cmdno].events = POLL_IN;
+        }
+
+        if(waitpid(-1,NULL,WNOHANG)>0)
+        {
+            for(int cmdno =0; cmdno < sz; cmdno++)
+            {
+                close(files[cmdno].fd);
+                const char * c = filenames[cmdno].c_str();
+                remove(c);
+            }       
+            return ;
+        }
+        
+    }
+    
+      
+}
+
+/* Things to do (imp)
+1.  Add feature for multiwatch call rn its the default call, do this by extracting first word and checking if its multiwatch
+2.  See why polling/selecting on  file descriptors is not working for updates :(
+3. File descriptors are all same due to fork call :/ yet they point to correct file because fork , maybe this can help in 2.
+*/
