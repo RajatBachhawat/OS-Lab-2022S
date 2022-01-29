@@ -1,7 +1,11 @@
 /* $begin shellmain */
 #include "syscall.h"
 #include <readline/readline.h>
+#include <sys/inotify.h>
 #include <poll.h>
+
+#define EVENT_SIZE  ( sizeof (struct inotify_event) )
+#define BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
 
 pid_t pidout;
 int verbose = 0;
@@ -352,7 +356,6 @@ void parseline(char *buf, char **argv, cmdlineProps &prop)
             // Opening (creating if not existing) file to write after truncating
             // Permissions : -rw-r--r--
             prop.wfd = Open(words[wordind+1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            printf("%d WFD\n",prop.wfd);
             wordind++;
         }
         /* Input redirection : '<' and following word skipped for argv */
@@ -431,10 +434,10 @@ void watcheval(int sz, watchCommand* wcs)
            sprintf(doc,"DocTemp%d",getpid());
            filenames[commandInd] = doc;
            
-           sprintf(doc,"%s\n",wcs[commandInd].argv);
+           sprintf(doc,"%s > DocTemp%d\n",wcs[commandInd].argv,getpid());
            printf("%s",doc);
            
-            int timer = 2;
+            int timer = 5;
            while(timer--)
            {
             eval(doc);
@@ -450,40 +453,54 @@ void watcheval(int sz, watchCommand* wcs)
            sprintf(doc,"DocTemp%d",pid);
            filenames[commandInd] = doc;
        }
-      // sleep(1);
       
     }
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    struct pollfd  files[sz];
+
+    int inotfd = inotify_init();
+
     for(int cmdno =0; cmdno < sz; cmdno++)
     {
         const char * c = filenames[cmdno].c_str();
-       files[cmdno].fd = Open(c, O_WRONLY | O_CREAT | O_TRUNC, 0644); 
-       files[cmdno].events = POLL_IN;
-        // FD_SET(files[cmdno],&readfds);
-       printf("file descriptor: %d ",files[cmdno].fd);
+        Open(c, O_WRONLY | O_CREAT | O_TRUNC, 0644); 
+        int watch_desc = inotify_add_watch(inotfd, c, IN_MODIFY);
+        //printf("%s: %d\n",c,errno);
     }
-    printf("\n");
-   
-   
+    
+
+    fd_set rfds;
+    
     while(1)
     {
-        int ret = poll(files, sz, -1);
-        for(int cmdno =0; cmdno < sz; cmdno++)
-        {
-            if(files[cmdno].revents && POLL_IN)
-            {
-                printf("Activity in file %d\n",files[cmdno].fd);
-            }
-            files[cmdno].events = POLL_IN;
-        }
+        FD_ZERO(&rfds);
+        FD_SET(inotfd,&rfds); //keyboard to be listened
+        struct timeval timeout ={0,0};
+        char buffer[BUF_LEN];
+        
 
+        int res=select(FD_SETSIZE,&rfds,NULL,NULL,&timeout);
+        
+        if(FD_ISSET(inotfd,&rfds)!=0)
+        {
+            int length = read(inotfd,buffer,BUF_LEN);
+            printf("len %d\n",length);
+            for(int i=0; i<length;)
+            {
+                struct inotify_event *event = (struct inotify_event *) &buffer[i];
+                printf("event len:%d  ",event->len);
+                if(event->len && (event->mask && IN_MODIFY))
+                {
+                    printf("File %s was changed",event->name);
+                }
+                i += EVENT_SIZE + event->len;
+            }
+        }
+        
         if(waitpid(-1,NULL,WNOHANG)>0)
         {
+           // Close(inotfd);
             for(int cmdno =0; cmdno < sz; cmdno++)
             {
-                close(files[cmdno].fd);
+               
                 const char * c = filenames[cmdno].c_str();
                 remove(c);
             }       
@@ -491,6 +508,45 @@ void watcheval(int sz, watchCommand* wcs)
         }
         
     }
+    // fd_set readfds;
+    // FD_ZERO(&readfds);
+    // struct pollfd  files[sz];
+    // for(int cmdno =0; cmdno < sz; cmdno++)
+    // {
+    //     const char * c = filenames[cmdno].c_str();
+    //    files[cmdno].fd = Open(c, O_WRONLY | O_CREAT | O_TRUNC, 0644); 
+    //    files[cmdno].events = POLL_IN;
+    //     // FD_SET(files[cmdno],&readfds);
+    //    printf("file descriptor: %d ",files[cmdno].fd);
+    // }
+    // printf("\n");
+    
+   
+   
+    // while(1)
+    // {
+    //     int ret = poll(files, sz, -1);
+    //     for(int cmdno =0; cmdno < sz; cmdno++)
+    //     {
+    //         if(files[cmdno].revents && POLL_IN)
+    //         {
+    //             printf("Activity in file %d\n",files[cmdno].fd);
+    //         }
+    //         files[cmdno].events = POLL_IN;
+    //     }
+
+    //     if(waitpid(-1,NULL,WNOHANG)>0)
+    //     {
+    //         for(int cmdno =0; cmdno < sz; cmdno++)
+    //         {
+    //             close(files[cmdno].fd);
+    //             const char * c = filenames[cmdno].c_str();
+    //             remove(c);
+    //         }       
+    //         return ;
+    //     }
+        
+    // }
     
       
 }
