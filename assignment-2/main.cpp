@@ -9,6 +9,8 @@
 
 pid_t pidout;
 int verbose = 0;
+int running;
+vector<pid_t>pids;
 vector<string> commands;
 
 
@@ -57,6 +59,7 @@ void sigtstp_handler(int sig)
  *     reaps all available zombie jobs, but doesn't wait for any
  *     nonzombie jobs.
  */
+
 void sigchld_handler(int sig) 
 {
     pid_t pid;
@@ -72,7 +75,11 @@ void sigchld_handler(int sig)
      * jobs to terminate, during which time the shell would not
      * be able to accept input. 
      */
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) 
+    {
+        for(auto it:pids)
+        if(it==pid)
+            running = 0;
         if (verbose)
             printf("sigchld_handler: job %d deleted\n", pid);
     }
@@ -432,10 +439,9 @@ int watchParser(char* buf, watchCommand* wcs )
 }
 void watcheval(int sz, watchCommand* wcs)
 {
-   
     int maxfiled = -1;
     vector<string>filenames(sz);
-    vector<pid_t>pids;
+    pids.clear();
    for(int commandInd = 0; commandInd<sz; commandInd++)
    {
        pid_t pid;
@@ -468,7 +474,6 @@ void watcheval(int sz, watchCommand* wcs)
        }
       
     }
-
     int inotfd = inotify_init1(IN_NONBLOCK);
     fd_set rfds;
      const char * arr[sz];
@@ -480,7 +485,8 @@ void watcheval(int sz, watchCommand* wcs)
         int watch_desc = inotify_add_watch(inotfd, arr[cmdno], IN_CLOSE_WRITE);
         watchmap[watch_desc] = cmdno;
     }
-    while(1)
+    running = 1;
+    while(running)
     {
         char buffer[BUF_LEN];
         
@@ -508,19 +514,17 @@ void watcheval(int sz, watchCommand* wcs)
             i += EVENT_SIZE + event->len;
         }
         
-        if(waitpid(-1,NULL,WNOHANG)>0)
-        {
-            for(auto it:watchmap)
-                inotify_rm_watch(inotfd,it.first);
-            for(int cmdno =0; cmdno < sz; cmdno++)
-            {
-                const char * c = filenames[cmdno].c_str();
-                remove(c);
-            }       
-            return ;
-        }
-        
     }
+    for(auto it:watchmap)
+        inotify_rm_watch(inotfd,it.first);
+    for(int cmdno =0; cmdno < sz; cmdno++)
+    {
+        const char * c = filenames[cmdno].c_str();
+        remove(c);
+    }      
+    pids.clear(); 
+    return ;
+    
    
 }
 
