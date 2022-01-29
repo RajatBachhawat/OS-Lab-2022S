@@ -170,15 +170,29 @@ int main()
         string command(cmdline);
         
         addToHist(commands,command);
-
+        char* firstSpace;
+        int watchcmd = 0;
+        char* temp = cmdline;
+        while(*temp ==' ')
+            temp++;
+        if(firstSpace = strchr(temp,' '))
+        {
+            *firstSpace = '\0';
+            if(strcmp(temp,"multiWatch")==0)
+                watchcmd =1;
+            *firstSpace = ' ';
+        }
         /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
-        // if(strlen(cmdline) > 1)
-        //     eval(cmdline);
-        watchCommand wcs[1000];
-        int sz = watchParser(cmdline,wcs);
-        watcheval(sz,wcs);
+        if(strlen(cmdline) > 1 && watchcmd ==0)
+            eval(cmdline);
+        else 
+        {
+            watchCommand wcs[1000];
+            int sz = watchParser(cmdline,wcs);
+            watcheval(sz,wcs);
+        }
         
-        free(cmdline);
+        //free(cmdline);
 
     }
     stopShell(commands);
@@ -421,6 +435,7 @@ void watcheval(int sz, watchCommand* wcs)
    
     int maxfiled = -1;
     vector<string>filenames(sz);
+    vector<pid_t>pids;
    for(int commandInd = 0; commandInd<sz; commandInd++)
    {
        pid_t pid;
@@ -435,15 +450,12 @@ void watcheval(int sz, watchCommand* wcs)
            filenames[commandInd] = doc;
            
            sprintf(doc,"%s > DocTemp%d\n",wcs[commandInd].argv,getpid());
-           printf("%s",doc);
            
-            int timer = 5;
-           while(timer--)
+            int timer = 2;
+           while(1)
            {
             eval(doc);
-            fprintf(stdout, "%u: ", (unsigned)time(NULL)); 
-            printf("%d\n",getpid());
-            sleep(1);
+            sleep(2);
            }
            exit(0);
        }
@@ -452,55 +464,56 @@ void watcheval(int sz, watchCommand* wcs)
            char doc[1000];
            sprintf(doc,"DocTemp%d",pid);
            filenames[commandInd] = doc;
+           pids.push_back(pid);
        }
       
     }
 
-    int inotfd = inotify_init();
-
-    for(int cmdno =0; cmdno < sz; cmdno++)
-    {
-        const char * c = filenames[cmdno].c_str();
-        Open(c, O_WRONLY | O_CREAT | O_TRUNC, 0644); 
-        int watch_desc = inotify_add_watch(inotfd, c, IN_MODIFY);
-        //printf("%s: %d\n",c,errno);
-    }
-    
-
+    int inotfd = inotify_init1(IN_NONBLOCK);
     fd_set rfds;
-    
+     const char * arr[sz];
+     unordered_map<int,int>watchmap;
+     for(int cmdno =0; cmdno < sz; cmdno++)
+    {
+        arr[cmdno] = filenames[cmdno].c_str();
+        Open(arr[cmdno], O_WRONLY | O_CREAT | O_TRUNC, 0644); 
+        int watch_desc = inotify_add_watch(inotfd, arr[cmdno], IN_CLOSE_WRITE);
+        watchmap[watch_desc] = cmdno;
+    }
     while(1)
     {
-        FD_ZERO(&rfds);
-        FD_SET(inotfd,&rfds); //keyboard to be listened
-        struct timeval timeout ={0,0};
         char buffer[BUF_LEN];
         
-
-        int res=select(FD_SETSIZE,&rfds,NULL,NULL,&timeout);
+        int length = read(inotfd,buffer,BUF_LEN);
         
-        if(FD_ISSET(inotfd,&rfds)!=0)
+        for(int i=0; i<length;)
         {
-            int length = read(inotfd,buffer,BUF_LEN);
-            printf("len %d\n",length);
-            for(int i=0; i<length;)
+            struct inotify_event *event = (struct inotify_event *) &buffer[i];
+
+            if(event->mask & IN_CLOSE_WRITE )
             {
-                struct inotify_event *event = (struct inotify_event *) &buffer[i];
-                printf("event len:%d  ",event->len);
-                if(event->len && (event->mask && IN_MODIFY))
+                fstream fileop;
+                fileop.open(arr[watchmap[event->wd]],ios::in);
+                string curr;
+                int index = watchmap[event->wd];
+                printf("%s %u\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ",wcs[index].argv,(unsigned)time(NULL),index+1);
+                
+                while(getline(fileop,curr))
                 {
-                    printf("File %s was changed",event->name);
+                    cout<<curr<<"\n";
                 }
-                i += EVENT_SIZE + event->len;
+                printf("->->->->->->->->->->->->->->->->->->->\n");
             }
+            
+            i += EVENT_SIZE + event->len;
         }
         
         if(waitpid(-1,NULL,WNOHANG)>0)
         {
-           // Close(inotfd);
+            for(auto it:watchmap)
+                inotify_rm_watch(inotfd,it.first);
             for(int cmdno =0; cmdno < sz; cmdno++)
             {
-               
                 const char * c = filenames[cmdno].c_str();
                 remove(c);
             }       
@@ -508,51 +521,6 @@ void watcheval(int sz, watchCommand* wcs)
         }
         
     }
-    // fd_set readfds;
-    // FD_ZERO(&readfds);
-    // struct pollfd  files[sz];
-    // for(int cmdno =0; cmdno < sz; cmdno++)
-    // {
-    //     const char * c = filenames[cmdno].c_str();
-    //    files[cmdno].fd = Open(c, O_WRONLY | O_CREAT | O_TRUNC, 0644); 
-    //    files[cmdno].events = POLL_IN;
-    //     // FD_SET(files[cmdno],&readfds);
-    //    printf("file descriptor: %d ",files[cmdno].fd);
-    // }
-    // printf("\n");
-    
    
-   
-    // while(1)
-    // {
-    //     int ret = poll(files, sz, -1);
-    //     for(int cmdno =0; cmdno < sz; cmdno++)
-    //     {
-    //         if(files[cmdno].revents && POLL_IN)
-    //         {
-    //             printf("Activity in file %d\n",files[cmdno].fd);
-    //         }
-    //         files[cmdno].events = POLL_IN;
-    //     }
-
-    //     if(waitpid(-1,NULL,WNOHANG)>0)
-    //     {
-    //         for(int cmdno =0; cmdno < sz; cmdno++)
-    //         {
-    //             close(files[cmdno].fd);
-    //             const char * c = filenames[cmdno].c_str();
-    //             remove(c);
-    //         }       
-    //         return ;
-    //     }
-        
-    // }
-    
-      
 }
 
-/* Things to do (imp)
-1.  Add feature for multiwatch call rn its the default call, do this by extracting first word and checking if its multiwatch
-2.  See why polling/selecting on  file descriptors is not working for updates :(
-3. File descriptors are all same due to fork call :/ yet they point to correct file because fork , maybe this can help in 2.
-*/
