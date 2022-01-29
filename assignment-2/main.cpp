@@ -239,7 +239,7 @@ void eval(char *cmdline)
                 Dup2(prop.wfd, STDOUT_FILENO);
                 if(prop.wfd != STDOUT_FILENO) Close(prop.wfd);
                 
-                /* Child runs user job */
+                /* history built-in */
                 if(strcmp(argv[0],"history")==0)
                 {
                    
@@ -247,6 +247,7 @@ void eval(char *cmdline)
                     searchInHist(0,0);
                     exit(0);
                 }
+                /* Child runs user job */
                 if (execvp(argv[0], argv) < 0)
                 {
                     printf("%s: Command not found.\n", argv[0]);
@@ -254,9 +255,14 @@ void eval(char *cmdline)
                 }
                 
             }
+            
             int status;
-            Waitpid(pid, &status, 0);
-
+            Waitpid(pid, &status, WUNTRACED);
+            if(WIFSTOPPED(status)){
+                Kill(pid, SIGCONT);
+                Waitpid(pid, &status, 0);
+            }
+            
             /* Parent must close the pipe endpoints that were used by the child */
             if(prop.rfd != STDIN_FILENO) Close(prop.rfd);
             if(prop.wfd != STDOUT_FILENO) Close(prop.wfd);
@@ -272,8 +278,10 @@ void eval(char *cmdline)
         if (!background)
         {
             int status;
-            if (waitpid(pidout, &status, WUNTRACED) < 0)
-                unix_error("waitfg: waitpid error");
+            Waitpid(pidout, &status, WUNTRACED);
+            if(WIFSTOPPED(status)){
+                Kill(pidout, SIGCONT);
+            }
         }
         else
         {
