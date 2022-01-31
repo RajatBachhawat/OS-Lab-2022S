@@ -1,6 +1,6 @@
 /* $begin shellmain */
 #include "syscall.h"
-#include <readline/readline.h>
+#include "termraw.h"
 
 pid_t pidout;
 int verbose = 0;
@@ -82,45 +82,100 @@ void sigchld_handler(int sig)
     return;
 }
 
-int autocomplete(int count, int key){
+void clear(char *buf){
+    for(int i=0; i<MAXFILENAMELEN; i++)
+        buf[i]='\0';
+}
+
+void longest_common_prefix(char *lcp, char *s){
+    int i = 0;
+    while(lcp[i]!='\0' && s[i]!='\0'){
+        if(lcp[i]!=s[i]){
+            break;
+        }
+        i++;
+    }
+    while(lcp[i]!='\0'){
+        lcp[i]='\0';
+        i++;
+    }
+}
+
+int autocomplete(char *line_buf){
     char ch;
-    char candidate[MAXLINE];
+    char lcp[MAXFILENAMELEN];
+    char candidates[MAXDIRSIZE][MAXFILENAMELEN];
     char *buf;
     
-    char *ptr = rl_line_buffer;
+    clear(lcp);
+    char *ptr = line_buf;
     buf = ptr;
     char prevch = '\0';
-    while(ch!='\0'){
-        ch = *ptr;
-        if(isspace(prevch) && !isspace(ch)){
+    while((ch = *ptr)!='\0'){
+        if(prevch == ' ' && ch != ' '){
             buf = ptr;
         }
         prevch = ch;
         ptr++;
     }
-
+    if(*(ptr-1) == ' '){
+        buf = ptr;
+    }
+    
+    int i = 0;
     int num_matches = 0;
     DIR *d;
     struct dirent *dir;
     d = opendir(".");
-    
+
     if (d) {
         while ((dir = readdir(d)) != NULL) {
             if(dir->d_type == DT_REG){
                 char *filename = dir->d_name;
                 if(strstr(filename, buf) - filename == 0){
-                    strcpy(candidate, filename);
-                    num_matches++;
+                    if(num_matches == 0)
+                        strncpy(lcp, filename, MAXFILENAMELEN);
+                    else
+                        longest_common_prefix(lcp, filename);
+                    strncpy(candidates[num_matches++], filename, MAXFILENAMELEN);
                 }
             }
         }
         closedir(d);
     }
-    if(num_matches == 1){
-        printf("%s",(candidate + strlen(buf)));
-        strcpy(buf, candidate);
+
+    char *extra_match = lcp + strlen(buf);
+    if(strlen(extra_match) > 0){
+        printf("%s", extra_match);
+        strncpy(buf, lcp, MAXFILENAMELEN);
+        num_matches = 1;
     }
-    return 1;
+    else if(num_matches > 1){
+        int option_num;
+
+        printf("\n");
+        for(int i = 0; i < num_matches; i++) {
+            printf("%d: %s\n", i+1, candidates[i]);
+        }
+        printf("Enter the number corresponding to a file (1 to %d): ", num_matches); fflush(stdout);
+        scanf("%d", &option_num);
+        if(option_num < 1 || option_num > num_matches){
+            printf("Out of range error");
+            return -1;
+        }
+
+        printf("\033[K");
+        int cnt = num_matches + 2;
+        while(cnt--){
+            printf("\033[1A\033[K");
+            fflush(stdout);
+        }
+        printf("\033[1;33mwish> \033[s\033[0m");
+        
+        strncpy(buf, candidates[option_num-1], MAXFILENAMELEN);
+        printf("%s", line_buf); fflush(stdout);
+    }
+    return num_matches;
 }
 
 int main()
@@ -128,38 +183,63 @@ int main()
     Signal(SIGINT, SIG_IGN); /* ctrl-c */
     Signal(SIGTSTP, SIG_IGN); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);
-    
-    char *cmdline; /* Command line */
-    rl_bind_key('\t', &autocomplete);
-    rl_bind_key(18, &searchInHist);
 
     startShell(commands);
 
-    while (1)
-    {
-        /* Read */
-        cmdline = readline("\033[1;33mwish> \033[0m");
-
-        if(!cmdline){ /* Blank line and EOF */
-            printf("\n");
-            exit(0);
+    int c;
+    char cmdline[MAXLINE]; /* Command Line */
+    for(int i=0;i<MAXLINE;i++) cmdline[i]='\0';
+    int cmdline_cnt = 0;
+    int clear_old_line = 1;
+    char prevc = '\0';
+    while(1) {
+        /* Prompt */
+        printf("\033[1;33mwish> \033[s\033[0m");
+        cmdline_cnt = 0;
+        for(int i=0;i<MAXLINE;i++){
+            cmdline[i]='\0';
         }
-        
-        strncat(cmdline,"\n",2);
-
-        if(strcmp(cmdline,"quit\n")==0)
-        break;
-    
-        /* Add to history*/
-        string command(cmdline);
-        
-        addToHist(commands,command);
-
-        /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
-        if(strlen(cmdline) > 1)
+        int num_matches = 0;
+        while (1) {
+            c = getch();
+            if(c == KEY_TAB) {
+                num_matches = autocomplete(cmdline);
+                if(num_matches < 0){
+                    cmdline[0] = '\0';
+                    cmdline_cnt = 0;
+                    break;
+                }
+                cmdline_cnt = strlen(cmdline);
+            }
+            else if(c == KEY_BACKSPACE) {
+                putchar('\b');
+                putchar(' ');
+                putchar('\b');
+                cmdline[--cmdline_cnt] = '\0';
+            }
+            else if (c == KEY_ENTER) {
+                if(prevc == KEY_TAB && (num_matches > 1 || num_matches < 0)) {
+                    prevc = c;
+                    continue;
+                }
+                putchar('\n');
+                cmdline[cmdline_cnt++] = '\n';
+                break;
+            }
+            else if (c == EOT) {
+                putchar('\n');
+                exit(0);
+            }
+            else {
+                putchar(c);
+                cmdline[cmdline_cnt++] = c;
+            }
+            prevc = c;
+        }
+        /* Evaluate */
+        if(strlen(cmdline) > 1){
             eval(cmdline);
-        
-        free(cmdline);
+        }
     }
     stopShell(commands);
 }

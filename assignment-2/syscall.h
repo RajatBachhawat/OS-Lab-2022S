@@ -22,6 +22,8 @@ using namespace std;
 
 #define MAXARGS 128
 #define MAXLINE 200
+#define MAXFILENAMELEN 100
+#define MAXDIRSIZE 10000
 #define HISTSIZE 100000
 #define DSPLHISTSIZE 1000
 
