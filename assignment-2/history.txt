@@ -1,3 +1,4 @@
+echo "hello n" | echo "yello n"
 history
 history
 history
@@ -99992,7 +99993,6 @@ make
 history
 histort
 cat history.txt
-history
 history
 history
 history

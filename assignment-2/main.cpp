@@ -1,9 +1,17 @@
 /* $begin shellmain */
 #include "syscall.h"
 #include "termraw.h"
+#include <readline/readline.h>
+#include <sys/inotify.h>
+#include <poll.h>
+
+#define EVENT_SIZE  ( sizeof (struct inotify_event) )
+#define BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
 
 pid_t pidout;
 int verbose = 0;
+int running;
+vector<pid_t>pids;
 vector<string> commands;
 
 
@@ -13,10 +21,17 @@ struct cmdlineProps
     int wfd; 
     cmdlineProps() : rfd(STDIN_FILENO),wfd(STDOUT_FILENO) {}
 };
+struct watchCommand
+{
+    char* argv;
+    cmdlineProps prop;
+};
 
 /* Function prototypes */
 void eval(char *cmdline);
 void parseline(char *buf, char **argv, cmdlineProps &prop);
+int watchParser( char* buf, watchCommand* );
+void watcheval(int sz, watchCommand* wcs);
 
 /* 
  * sigint_handler - SIGINT handler. The kernel sends a SIGINT whenver
@@ -45,6 +60,7 @@ void sigtstp_handler(int sig)
  *     reaps all available zombie jobs, but doesn't wait for any
  *     nonzombie jobs.
  */
+
 void sigchld_handler(int sig) 
 {
     pid_t pid;
@@ -60,7 +76,11 @@ void sigchld_handler(int sig)
      * jobs to terminate, during which time the shell would not
      * be able to accept input. 
      */
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) 
+    {
+        for(auto it:pids)
+        if(it==pid)
+            running = 0;
         if (verbose)
             printf("sigchld_handler: job %d deleted\n", pid);
     }
@@ -186,13 +206,15 @@ int main()
 
     startShell(commands);
 
-    int c;
+    char c;
     char cmdline[MAXLINE]; /* Command Line */
     for(int i=0;i<MAXLINE;i++) cmdline[i]='\0';
     int cmdline_cnt = 0;
     int clear_old_line = 1;
     char prevc = '\0';
-    while(1) {
+    
+    while (1)
+    {
         /* Prompt */
         printf("\033[1;33mwish> \033[s\033[0m");
         cmdline_cnt = 0;
@@ -236,9 +258,34 @@ int main()
             }
             prevc = c;
         }
-        /* Evaluate */
-        if(strlen(cmdline) > 1){
+
+        if(strcmp(cmdline,"quit\n")==0)
+            break;
+    
+        /* Add to history*/
+        string command(cmdline);
+        
+        addToHist(commands,command);
+        char* firstSpace;
+        int watchcmd = 0;
+        char* temp = cmdline;
+        while(*temp ==' ')
+            temp++;
+        if(firstSpace = strchr(temp,' '))
+        {
+            *firstSpace = '\0';
+            if(strcmp(temp,"multiWatch")==0)
+                watchcmd =1;
+            *firstSpace = ' ';
+        }
+        /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
+        if(strlen(cmdline) > 1 && watchcmd ==0)
             eval(cmdline);
+        else 
+        {
+            watchCommand wcs[1000];
+            int sz = watchParser(cmdline,wcs);
+            watcheval(sz,wcs);
         }
     }
     stopShell(commands);
@@ -260,16 +307,14 @@ void eval(char *cmdline)
     // Forking to run entire command
     if((pidout = Fork())==0)
     {
-        
-        char* pipeloc;
-        int commandInPipe = 0;
-        int pipefd[2];
-        
         if(!background){
             Signal(SIGINT, SIG_DFL);
             Signal(SIGTSTP, SIG_DFL);
         }
 
+        char* pipeloc;
+        int commandInPipe = 0;
+        int pipefd[2];
         while(1)
         {
             pipeloc = strchr(cmdline,'|');
@@ -377,6 +422,7 @@ void eval(char *cmdline)
 // Takes command in the form "<command>\n"
 void parseline(char *buf, char **argv, cmdlineProps &prop)
 {
+
     char *delim; /* Points to first space delimiter */
     int argc;    /* Number of args */
 
@@ -435,14 +481,141 @@ void parseline(char *buf, char **argv, cmdlineProps &prop)
         }
         else 
         {
+           
             argv[argvPos++]=word;
         }
     }
     
     argv[argvPos]=NULL;
-
+    
    
 
     return;
 }
+
 /* $end parseline */
+
+int watchParser(char* buf, watchCommand* wcs )
+{
+    int n = strlen(buf);
+    
+    int openQuote = 0;
+    int curCommand = -1;
+    int curPos = 0;
+    char command[MAXLINE];
+    char* startofWord;
+    int files[n]={0};
+    for(int ind = 0; ind < n; ind++)
+    {
+        if(buf[ind]=='\"' && openQuote ==0)
+        {
+            curCommand++;
+            curPos = 0;
+            openQuote = 1;
+            startofWord = buf+ind+1;
+        }
+        else 
+        if(buf[ind]=='\"' && openQuote == 1 && (buf[ind+1]==',' || buf[ind+1]==']'))
+        {
+            cmdlineProps curProp;
+            buf[ind]='\0';
+            buf[ind+1]='\0';
+            wcs[curCommand].argv = startofWord;
+            openQuote = 0;
+        }
+        
+        
+    }
+    return curCommand+1;
+}
+void watcheval(int sz, watchCommand* wcs)
+{
+    int maxfiled = -1;
+    vector<string>filenames(sz);
+    pids.clear();
+   for(int commandInd = 0; commandInd<sz; commandInd++)
+   {
+       pid_t pid;
+       
+       if( (pid = Fork())==0)
+       {
+           Signal(SIGINT, SIG_DFL);
+           Signal(SIGTSTP, SIG_DFL);
+           char doc[1000];
+           
+           sprintf(doc,"DocTemp%d",getpid());
+           filenames[commandInd] = doc;
+           
+           sprintf(doc,"%s > DocTemp%d\n",wcs[commandInd].argv,getpid());
+           
+            int timer = 2;
+           while(1)
+           {
+            eval(doc);
+            sleep(2);
+           }
+           exit(0);
+       }
+       else 
+       {
+           char doc[1000];
+           sprintf(doc,"DocTemp%d",pid);
+           filenames[commandInd] = doc;
+           pids.push_back(pid);
+       }
+      
+    }
+    int inotfd = inotify_init1(IN_NONBLOCK);
+    fd_set rfds;
+     const char * arr[sz];
+     unordered_map<int,int>watchmap;
+     for(int cmdno =0; cmdno < sz; cmdno++)
+    {
+        arr[cmdno] = filenames[cmdno].c_str();
+        Open(arr[cmdno], O_WRONLY | O_CREAT | O_TRUNC, 0644); 
+        int watch_desc = inotify_add_watch(inotfd, arr[cmdno], IN_CLOSE_WRITE);
+        watchmap[watch_desc] = cmdno;
+    }
+    running = 1;
+    while(running)
+    {
+        char buffer[BUF_LEN];
+        
+        int length = read(inotfd,buffer,BUF_LEN);
+        
+        for(int i=0; i<length;)
+        {
+            struct inotify_event *event = (struct inotify_event *) &buffer[i];
+
+            if(event->mask & IN_CLOSE_WRITE )
+            {
+                fstream fileop;
+                fileop.open(arr[watchmap[event->wd]],ios::in);
+                string curr;
+                int index = watchmap[event->wd];
+                printf("%s %u\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ",wcs[index].argv,(unsigned)time(NULL),index+1);
+                
+                while(getline(fileop,curr))
+                {
+                    cout<<curr<<"\n";
+                }
+                printf("->->->->->->->->->->->->->->->->->->->\n");
+            }
+            
+            i += EVENT_SIZE + event->len;
+        }
+        
+    }
+    for(auto it:watchmap)
+        inotify_rm_watch(inotfd,it.first);
+    for(int cmdno =0; cmdno < sz; cmdno++)
+    {
+        const char * c = filenames[cmdno].c_str();
+        remove(c);
+    }      
+    pids.clear(); 
+    return ;
+    
+   
+}
+
