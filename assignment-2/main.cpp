@@ -676,7 +676,6 @@ void watcheval(int sz, watchCommand* wcs )
     {
         const char * c = filenames[cmdno].c_str();
         remove(c);
-        Close(arr[cmdno]);
     }      
     pids.clear(); 
     return ;
