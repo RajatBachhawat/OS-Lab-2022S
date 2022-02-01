@@ -9,6 +9,7 @@ struct termios oldterm, newterm;
 
 #define KEY_ENTER       0x000a
 #define KEY_TAB         0x0009
+#define KEY_CTRL_R      0x0012
 #define KEY_BACKSPACE   oldterm.c_cc[VERASE]
 #define EOT             0x0004
 

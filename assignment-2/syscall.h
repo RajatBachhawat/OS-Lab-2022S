@@ -152,11 +152,11 @@ struct dirent *Readdir(DIR *dirp);
 int Closedir(DIR *dirp);
 
 // Functions for history
-void startShell(vector<string>& comms);
-void stopShell(vector<string>& comms);
+void startShell();
+void stopShell();
 void displayHist(vector<string>& comms);
 void addToHist(vector<string>& comms, string& command);
-int searchInHist(int count, int key);
+int searchInHist();
 void addsubstrs(string& s, int ind);
 inline int getCharMap(char ch)
 {

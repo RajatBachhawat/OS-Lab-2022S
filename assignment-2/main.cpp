@@ -1,7 +1,6 @@
 /* $begin shellmain */
 #include "syscall.h"
 #include "termraw.h"
-#include <readline/readline.h>
 #include <sys/inotify.h>
 #include <poll.h>
 
@@ -12,7 +11,7 @@ pid_t pidout;
 int verbose = 0;
 int running;
 vector<pid_t>pids;
-vector<string> commands;
+extern vector<string> commands;
 
 
 struct cmdlineProps 
@@ -204,13 +203,12 @@ int main()
     Signal(SIGTSTP, SIG_IGN); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);
 
-    startShell(commands);
+    startShell();
 
     char c;
     char cmdline[MAXLINE]; /* Command Line */
     for(int i=0;i<MAXLINE;i++) cmdline[i]='\0';
     int cmdline_cnt = 0;
-    int clear_old_line = 1;
     char prevc = '\0';
     
     while (1)
@@ -222,6 +220,7 @@ int main()
             cmdline[i]='\0';
         }
         int num_matches = 0;
+        int history_displayed = 0;
         while (1) {
             c = getch();
             if(c == KEY_TAB) {
@@ -232,6 +231,12 @@ int main()
                     break;
                 }
                 cmdline_cnt = strlen(cmdline);
+            }
+            else if(c == KEY_CTRL_R) {
+                printf("\n");
+                searchInHist();
+                history_displayed = 1;
+                break;
             }
             else if(c == KEY_BACKSPACE) {
                 putchar('\b');
@@ -250,7 +255,7 @@ int main()
             }
             else if (c == EOT) {
                 putchar('\n');
-                exit(0);
+                stopShell();
             }
             else {
                 putchar(c);
@@ -259,8 +264,12 @@ int main()
             prevc = c;
         }
 
+        if(history_displayed == 1){
+            continue;
+        }
+
         if(strcmp(cmdline,"quit\n")==0)
-            break;
+            stopShell();
     
         /* Add to history*/
         string command(cmdline);
@@ -288,7 +297,8 @@ int main()
             watcheval(sz,wcs);
         }
     }
-    stopShell(commands);
+    stopShell();
+    return 0;
 }
 /* $end shellmain */
 
@@ -366,10 +376,9 @@ void eval(char *cmdline)
                 
                 /* history built-in */
                 if(strcmp(argv[0],"history")==0)
-                {
-                   
+                {   
                     displayHist(commands);
-                    searchInHist(0,0);
+                    searchInHist();
                     exit(0);
                 }
                 /* Child runs user job */

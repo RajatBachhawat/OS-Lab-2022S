@@ -1,6 +1,6 @@
 #include "syscall.h"
 
-extern vector<string> commands;
+vector<string> commands;
 
 /* Data Structures*/
 
@@ -207,7 +207,7 @@ int Closedir(DIR *dirp)
     return rc;
 }
 
-void startShell(vector<string>&comms)
+void startShell()
 {
     // Initialising Character Dictionary
     string allchars = "1234567890!@#$%^&*()-=[];',./_+{}:\"<>?|\\ \n";
@@ -219,34 +219,33 @@ void startShell(vector<string>&comms)
     string curr;
     while(getline(historyFile,curr))
     {
-        comms.push_back(curr);
+        commands.push_back(curr);
        // cout<<curr<<"\n";
     }
-    int n = comms.size();
+    int n = commands.size();
     for(int i=0; i<n/2;i++)
     {
-        swap(comms[i],comms[n-i-1]);
+        swap(commands[i],commands[n-i-1]);
     }
-    for(int i =0; i<comms.size();i++)
+    for(int i =0; i<commands.size();i++)
     {
-        addsubstrs(comms[i],i);
+        addsubstrs(commands[i],i);
     }
 
 }
 
-void stopShell(vector<string>&comms)
+void stopShell()
 {
     fstream historyFile;
     historyFile.open("history.txt", ios::out);
     string curr;
     int count = HISTSIZE;
-    while(comms.size()>0 && count--)
+    while(commands.size()>0 && count--)
     {
-        historyFile<<comms.back()<<"\n";
-        comms.pop_back();
-        
+        historyFile<<commands.back()<<"\n";
+        commands.pop_back();
     }
-
+    exit(0);
 }
 
 void addsubstrs(string& s, int ind)
@@ -259,24 +258,24 @@ void addsubstrs(string& s, int ind)
     }
 }
 
-void displayHist(vector<string>& comms)
+void displayHist(vector<string>& commands)
 {
-    size_t sz = comms.size();
+    size_t sz = commands.size();
     int total = max(0,(int)sz-DSPLHISTSIZE);
     for(int i = total ; i< sz; i++)
     {
-        cout<<sz-i<<": "<<comms[i]<<"\n";
+        cout<<sz-i<<": "<<commands[i]<<"\n";
     }
 }
-void addToHist(vector<string>& comms, string& command)
+void addToHist(vector<string>& commands, string& command)
 {
     if(command.size()==1)
         return;
     command = command.substr(0,command.size()-1);
-    comms.push_back(command);
-    addsubstrs(command,comms.size()-1);
+    commands.push_back(command);
+    addsubstrs(command,commands.size()-1);
 }
-int searchInHist(int count, int key)
+int searchInHist()
 {
     string searchstr;
     cout<<"Enter Search String: ";
