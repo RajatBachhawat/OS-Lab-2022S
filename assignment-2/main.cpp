@@ -10,9 +10,9 @@
 pid_t pidout;
 int verbose = 0;
 int running;
-vector<pid_t>pids;
+set<pid_t>pids;
 extern vector<string> commands;
-
+int flag;
 
 struct cmdlineProps 
 {   
@@ -29,7 +29,7 @@ struct watchCommand
 /* Function prototypes */
 void eval(char *cmdline);
 void parseline(char *buf, char **argv, cmdlineProps &prop);
-int watchParser( char* buf, watchCommand* );
+int watchParser( char* buf, watchCommand*);
 void watcheval(int sz, watchCommand* wcs);
 
 /* 
@@ -77,8 +77,16 @@ void sigchld_handler(int sig)
      */
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) 
     {
-        for(auto it:pids)
-        if(it==pid)
+        // for(auto it:pids)
+        // if(it==pid)
+        //     running = 0;
+        if(pids.find(pid)!=pids.end())
+        {
+            pids.erase(pid);
+            if(flag == 0)
+                running  =0;
+        }
+        if(pids.size()==0)
             running = 0;
         if (verbose)
             printf("sigchld_handler: job %d deleted\n", pid);
@@ -293,6 +301,7 @@ int main()
                 eval(cmdline);
             else 
             {
+                flag  =0;
                 watchCommand wcs[1000];
                 int sz = watchParser(cmdline,wcs);
                 watcheval(sz,wcs);
@@ -518,6 +527,8 @@ int watchParser(char* buf, watchCommand* wcs )
     int files[n]={0};
     for(int ind = 0; ind < n; ind++)
     {
+        if(buf[ind] == '-' && ind+1<n && buf[ind+1]=='t')
+            flag = 1;
         if(buf[ind]=='\"' && openQuote ==0)
         {
             curCommand++;
@@ -539,7 +550,7 @@ int watchParser(char* buf, watchCommand* wcs )
     }
     return curCommand+1;
 }
-void watcheval(int sz, watchCommand* wcs)
+void watcheval(int sz, watchCommand* wcs )
 {
     int maxfiled = -1;
     vector<string>filenames(sz);
@@ -563,6 +574,8 @@ void watcheval(int sz, watchCommand* wcs)
            while(1)
            {
             eval(doc);
+            if(flag==1)
+                break;
             sleep(2);
            }
            exit(0);
@@ -572,7 +585,7 @@ void watcheval(int sz, watchCommand* wcs)
            char doc[1000];
            sprintf(doc,"DocTemp%d",pid);
            filenames[commandInd] = doc;
-           pids.push_back(pid);
+           pids.insert(pid);
        }
       
     }
@@ -596,9 +609,10 @@ void watcheval(int sz, watchCommand* wcs)
         
         for(int i=0; i<length;)
         {
+            
             struct inotify_event *event = (struct inotify_event *) &buffer[i];
 
-            if(event->mask & IN_CLOSE_WRITE )
+            if((event->mask & IN_CLOSE_WRITE ))
             {
                 fstream fileop;
                 fileop.open(arr[watchmap[event->wd]],ios::in);
