@@ -288,13 +288,15 @@ int main()
             *firstSpace = ' ';
         }
         /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
-        if(strlen(cmdline) > 1 && watchcmd ==0)
-            eval(cmdline);
-        else 
-        {
-            watchCommand wcs[1000];
-            int sz = watchParser(cmdline,wcs);
-            watcheval(sz,wcs);
+        if(strlen(cmdline) > 1){
+            if(watchcmd == 0)
+                eval(cmdline);
+            else 
+            {
+                watchCommand wcs[1000];
+                int sz = watchParser(cmdline,wcs);
+                watcheval(sz,wcs);
+            }
         }
     }
     stopShell();

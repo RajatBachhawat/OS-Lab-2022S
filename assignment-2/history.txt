@@ -1,3 +1,7 @@
+history
+clear
+multiWatch ["echo p", "date"]
+history
 ps
 sleep 5
 sleep 15
@@ -99585,11 +99589,3 @@ history
 ls
 history
 histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt

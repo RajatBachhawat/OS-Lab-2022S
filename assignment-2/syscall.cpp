@@ -211,7 +211,7 @@ void startShell()
 {
     // Initialising Character Dictionary
     string allchars = "1234567890!@#$%^&*()-=[];',./_+{}:\"<>?|\\ \n";
-    for(int i = 0; i<allchars.size();i++)
+    for(int i = 0; i<(int)allchars.size();i++)
         charDict[allchars[i]]=26+i;
     // Opening File
     fstream historyFile;
@@ -222,12 +222,12 @@ void startShell()
         commands.push_back(curr);
        // cout<<curr<<"\n";
     }
-    int n = commands.size();
+    int n = (int)commands.size();
     for(int i=0; i<n/2;i++)
     {
         swap(commands[i],commands[n-i-1]);
     }
-    for(int i =0; i<commands.size();i++)
+    for(int i =0; i<(int)commands.size();i++)
     {
         addsubstrs(commands[i],i);
     }
@@ -240,7 +240,7 @@ void stopShell()
     historyFile.open("history.txt", ios::out);
     string curr;
     int count = HISTSIZE;
-    while(commands.size()>0 && count--)
+    while((int)commands.size()>0 && count--)
     {
         historyFile<<commands.back()<<"\n";
         commands.pop_back();
@@ -269,25 +269,25 @@ void displayHist(vector<string>& commands)
 }
 void addToHist(vector<string>& commands, string& command)
 {
-    if(command.size()==1)
+    if((int)command.size()==1)
         return;
-    command = command.substr(0,command.size()-1);
+    command = command.substr(0,(int)command.size()-1);
     commands.push_back(command);
-    addsubstrs(command,commands.size()-1);
+    addsubstrs(command,(int)commands.size()-1);
 }
 int searchInHist()
 {
     string searchstr;
     cout<<"Enter Search String: ";
-    getline(cin,searchstr);
+    getline(cin, searchstr);
     int ind = historyTrie.search(searchstr);
-    if(ind==-1 || ind<commands.size()-HISTSIZE) // Also add if minimum index not in top 100000
+    if(ind==-1 || ind<(int)commands.size()-HISTSIZE) // Also add if minimum index not in top 100000
     {
         vector<int>maxinds;
         int maxlen = 0;
-        for(int i=0;i<searchstr.size();i++)
+        for(int i=0;i<(int)searchstr.size();i++)
         {
-            string searchval = searchstr.substr(i,searchstr.size()-i);
+            string searchval = searchstr.substr(i,(int)searchstr.size()-i);
             historyTrie.searchMult(searchval,maxlen,maxinds);
         }
         bool currpresent = 0;
@@ -301,7 +301,7 @@ int searchInHist()
             unordered_map<int,int>alreadyPresent;
             for(auto it:maxinds)
             {
-                if(it>=commands.size()-HISTSIZE && !alreadyPresent[it])
+                if(it>=(int)commands.size()-HISTSIZE && !alreadyPresent[it])
                     cout<<commands[it]<<"\n",currpresent = true,alreadyPresent[it]=1;
             }
             if(currpresent)
