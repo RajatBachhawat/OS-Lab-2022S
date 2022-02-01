@@ -1,3 +1,4 @@
+ls > lel | sort
 multiWatch -t ["sleep 10 | echo ugh","echo yay"] > xyz.txt
 v
 multiWatch -t ["sleep 10 | echo ugh","echo yay"]

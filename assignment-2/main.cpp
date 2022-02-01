@@ -39,6 +39,7 @@ void watcheval(int sz, watchCommand* wcs);
  */
 void sigint_handler(int sig) 
 {
+    running = 0;
     if (verbose)
 	printf("sigint_handler: shell caught SIGINT\n");
 }
@@ -205,7 +206,7 @@ int autocomplete(char *line_buf){
 
 int main()
 {
-    Signal(SIGINT, SIG_IGN); /* ctrl-c */
+    Signal(SIGINT, sigint_handler); /* ctrl-c */
     Signal(SIGTSTP, SIG_IGN); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);
 
@@ -487,6 +488,7 @@ void parseline(char *buf, char **argv, cmdlineProps &prop)
         {
             // Opening (creating if not existing) file to write after truncating
             // Permissions : -rw-r--r--
+            if(prop.wfd != STDOUT_FILENO) Close(prop.wfd);
             prop.wfd = Open(words[wordind+1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
             wordind++;
         }
@@ -496,6 +498,7 @@ void parseline(char *buf, char **argv, cmdlineProps &prop)
         {
             // Opening file to read
             // Permissions : ----------
+            if(prop.rfd != STDIN_FILENO) Close(prop.rfd);
             prop.rfd = Open(words[wordind+1], O_RDONLY, 0);
             wordind++;
         }
@@ -673,6 +676,7 @@ void watcheval(int sz, watchCommand* wcs )
     {
         const char * c = filenames[cmdno].c_str();
         remove(c);
+        Close(arr[cmdno]);
     }      
     pids.clear(); 
     return ;
