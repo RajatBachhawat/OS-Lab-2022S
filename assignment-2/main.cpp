@@ -13,6 +13,7 @@ int running;
 set<pid_t>pids;
 extern vector<string> commands;
 int flag;
+char* outputFile;
 
 struct cmdlineProps 
 {   
@@ -77,14 +78,11 @@ void sigchld_handler(int sig)
      */
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) 
     {
-        // for(auto it:pids)
-        // if(it==pid)
-        //     running = 0;
         if(pids.find(pid)!=pids.end())
         {
             pids.erase(pid);
             if(flag == 0)
-                running  =0;
+                running = 0;
         }
         if(pids.size()==0)
             running = 0;
@@ -301,7 +299,8 @@ int main()
                 eval(cmdline);
             else 
             {
-                flag  =0;
+                flag = 0;
+                outputFile = NULL;
                 watchCommand wcs[1000];
                 int sz = watchParser(cmdline,wcs);
                 watcheval(sz,wcs);
@@ -384,12 +383,13 @@ void eval(char *cmdline)
                 * Close prop.wfd after dup2() as it's no longer needed */
                 Dup2(prop.wfd, STDOUT_FILENO);
                 if(prop.wfd != STDOUT_FILENO) Close(prop.wfd);
+               
                 
                 /* history built-in */
                 if(strcmp(argv[0],"history")==0)
                 {   
                     displayHist(commands);
-                    searchInHist();
+
                     exit(0);
                 }
                 /* Child runs user job */
@@ -545,6 +545,23 @@ int watchParser(char* buf, watchCommand* wcs )
             wcs[curCommand].argv = startofWord;
             openQuote = 0;
         }
+        if(buf[ind] == '>' && openQuote ==0)
+        {
+            char temp[MAXLINE];
+            clear(temp);
+            int tempind = 0;
+            for(int j = ind+1; buf[j]!='\n'; j++)
+            {
+                if(buf[j]!=' ')
+                    temp[tempind++]=buf[j];
+            }
+            if(tempind!=0)
+            {
+                temp[tempind] = '\0';
+                outputFile = (char*)malloc((strlen(temp)+1)*sizeof(char));
+                strcpy(outputFile,temp);
+            }
+        }
         
         
     }
@@ -555,12 +572,23 @@ void watcheval(int sz, watchCommand* wcs )
     int maxfiled = -1;
     vector<string>filenames(sz);
     pids.clear();
+    int stdoutcopy;
+    stdoutcopy = dup(1);
+    if(outputFile != NULL)
+    {
+        int x = Open(outputFile,O_WRONLY | O_CREAT | O_TRUNC, 0644); 
+        Dup2(x,STDOUT_FILENO);
+        Close(x);
+
+    }
    for(int commandInd = 0; commandInd<sz; commandInd++)
    {
        pid_t pid;
        
        if( (pid = Fork())==0)
        {
+           
+           
            Signal(SIGINT, SIG_DFL);
            Signal(SIGTSTP, SIG_DFL);
            char doc[1000];
@@ -618,18 +646,26 @@ void watcheval(int sz, watchCommand* wcs )
                 fileop.open(arr[watchmap[event->wd]],ios::in);
                 string curr;
                 int index = watchmap[event->wd];
+                if(running)
                 printf("%s %u\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ",wcs[index].argv,(unsigned)time(NULL),index+1);
                 
                 while(getline(fileop,curr))
                 {
+                    if(running)
                     cout<<curr<<"\n";
                 }
+                if(running)
                 printf("->->->->->->->->->->->->->->->->->->->\n");
             }
             
             i += EVENT_SIZE + event->len;
         }
         
+    }
+    if(outputFile!=NULL)
+    {
+        Dup2(stdoutcopy,1);
+        Close(stdoutcopy);
     }
     for(auto it:watchmap)
         inotify_rm_watch(inotfd,it.first);
