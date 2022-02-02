@@ -1,3 +1,306 @@
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 10 | sleep 10 | sleep 10
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 3
+sleep 5 | sleep 6
+ps
+ps
+ps
+ps
+sleep 5 | sleep 5 &
+clear
+ps
+ps
+ps
+ps
+ps
+sleep 15
+ps
+sleep 15 &
+clear
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 10
+sleep 5 &
+ps
+ps
+ps
+ps
+sleep 4
+sleep 5
+sleep 10
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+p
+ps
+ps
+ps
+ps
+sleep 5
+sleep 15
+ps
+kill -9 366080
+ps
+kill -9 364225
+ps
+ps
+sleep 5
+sleep 15 &
+ls | sort
+multiWatch ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"] > a
+multiWatch ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"] > a
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"] > a
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+make
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+ps
+multiWatch -t ["sleep 10 | echo ugh", "sleep 5 | ps", "echo yay"]
+ls | sort
+ls | osr
+multiWatch -t ["sleep 10 | echo ugh","echo yay"]
+multiWatch -t ["sleep 10 | echo ugh","echo yay"]
+clear
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 5 | sleep 5 | sleep 5 &
+sleep 1
+ps
+ps
+sleep 1 | sleep 1 | sleep 1 &
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 5
+sleep 15
+ps
+sleep 1 | sleep 1 | sleep 1
+ps
+ps
+ps
+ps
+sleep 5 | sleep 5 | sleep 5 &
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 5 | sleep 6 | sleep 7
+ps
+echo peace
+ps
+sleep 5 | ls | sort
+ps
+ls | sort
+ps
+multiWatch -t ["sleep 10 | echo ugh","echo yay"] > xyz.txt
+multiWatch -t ["sleep 10 | echo ugh","echo yay"] > xyz.txt
+ps
+sleep 5
+ps
+sleep 15 &
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 5
+sleep 15
+ps
+ps
+ps
+ps
+sleep 5
+ps
+sleep 5
+sleep 5
+sleep 5
+ps
+sleep 15
+ps
+ps
+sleep 5 &
+ps
+ps
+sleep 5
+ps
+ps
+sleep 5 &
+ps
+sleep 5
+sleep 5
+ps
+ps
+ps
+sleep 5 &
+ps
+ps
+ps -o pid,ppid,pgid,cmd
+ps
+sleep 15 &
+ps
+sleep 15
+ps ao pid,pgid,cmd,tty
+sleep 15 &
+ps ao pid,pgid,cmd
+ps ao pid,pgid,cmd
+ps
+sleep 15 &
+sleep 15
+sleep 15
+ps
+ps
+sleep 15 &
+ps ao pid,pgid,cmd
+sleep 15
+ps ao pid,pgid,cmd
+sleep 15
+ps ao pid,pgid,cmd
+ps ao pid
+ps a pid
+ps x pid
+ps xao pid,ppid,pgid,cmd
+ps pid,pgid,cmd
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 15
+ps
+sleep 5
+sleep 15
+p
+ps
+ps
+sleep 15
+ps
+sleep 5
+sleep 15
+ps
+sleep 5
+ps
+sleep 15
+ps
+ps
+sleep 5
+ps
+sleep 15
+ps
+sleep 15 &
+ps
+sps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+ps
+sleep 5
+sleep 15 &
+ps
+ps
+ps
+ps
+ps
+sleep 5
+ps
+ps
+sleep 5
+ps
+p
+ps
+ps
+sleep 5 &
 ls > lel | sort
 multiWatch -t ["sleep 10 | echo ugh","echo yay"] > xyz.txt
 v
@@ -98694,359 +98997,3 @@ make
 make 
 make 
 ./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 

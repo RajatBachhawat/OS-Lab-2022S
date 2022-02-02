@@ -14,6 +14,7 @@ set<pid_t>pids;
 extern vector<string> commands;
 int flag;
 char* outputFile;
+int watchcmd = 0;
 
 struct cmdlineProps 
 {   
@@ -283,7 +284,7 @@ int main()
         
         addToHist(commands,command);
         char* firstSpace;
-        int watchcmd = 0;
+        watchcmd = 0;
         char* temp = cmdline;
         while(*temp ==' ')
             temp++;
@@ -328,7 +329,14 @@ void eval(char *cmdline)
     // Forking to run entire command
     if((pidout = Fork())==0)
     {
+        if(!watchcmd)
+            setpgid(0, 0);
+
         if(!background){
+            if(!watchcmd){
+                Signal(SIGTTOU, SIG_IGN);
+                tcsetpgrp(STDIN_FILENO, getpid());
+            }
             Signal(SIGINT, SIG_DFL);
             Signal(SIGTSTP, SIG_DFL);
         }
@@ -416,17 +424,29 @@ void eval(char *cmdline)
             if(pipeloc == NULL)
                 break;
         }
-        // Exitting first level child process
+        // Exitting first level child process   
         exit(0);
     }
     else 
     {
+        if(!watchcmd)
+            setpgid(pidout, pidout);
+
         if (!background)
         {
+            if(!watchcmd){
+                Signal(SIGTTOU, SIG_IGN);
+                tcsetpgrp(STDIN_FILENO, pidout);
+            }
             int status;
             Waitpid(pidout, &status, WUNTRACED);
             if(WIFSTOPPED(status)){
                 Kill(pidout, SIGCONT);
+                // Waitpid(pidout, &status, 0);
+            }
+            if(!watchcmd){
+                Signal(SIGTTOU, SIG_IGN);
+                tcsetpgrp(STDIN_FILENO, getpid());
             }
         }
         else
