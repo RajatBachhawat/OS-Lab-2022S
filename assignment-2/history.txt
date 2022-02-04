@@ -1,3 +1,30 @@
+multiWatch ["./inf"]
+multiWatch ["./inf","./inf"] > mastimasti
+multiWatch -t ["ps","./inf"]
+multiWatch ["ps"]
+ps
+multiWatch -t ["ps"]
+multiWatch ["ps"]
+multiWatch -t ["ps"]
+multiWatch -t ["./inf"]
+multiWatch ["ps","./inf"]
+multiWatch ["./inf","./inf"]
+multiWatch ["ps"]
+make
+multiWatch ["ps"]
+multiWatch ["ps"]
+multiWatch ["ps"]
+multiWatch ["ps"]
+multiWatch ["ps"]
+multiWatch ["sensors"]
+clear
+sensors
+multiWatch ["./inf","./inf"]
+gcc -o inf inf.c
+multiWatch ["./inf", "./inf"]
+multiWatch ["./inf"]
+multiWatch ["./inf"]
+multiWatch ["./inf"]
 ps
 ps
 ps
@@ -98921,79 +98948,3 @@ make
 make 
 ./wish
 make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish

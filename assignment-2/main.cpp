@@ -642,13 +642,15 @@ void watcheval(int sz, watchCommand* wcs )
     }
     int inotfd = inotify_init1(IN_NONBLOCK);
     fd_set rfds;
-     const char * arr[sz];
-     unordered_map<int,int>watchmap;
-     for(int cmdno =0; cmdno < sz; cmdno++)
+    const char * arr[sz];
+    int tempfile_rfds[sz];
+    unordered_map<int,int>watchmap;
+    for(int cmdno =0; cmdno < sz; cmdno++)
     {
         arr[cmdno] = filenames[cmdno].c_str();
-        Open(arr[cmdno], O_WRONLY | O_CREAT | O_TRUNC, 0644); 
-        int watch_desc = inotify_add_watch(inotfd, arr[cmdno], IN_CLOSE_WRITE);
+        Open(arr[cmdno], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        tempfile_rfds[cmdno] = Open(arr[cmdno], O_RDONLY, 0);
+        int watch_desc = inotify_add_watch(inotfd, arr[cmdno], IN_MODIFY | IN_CLOSE_WRITE);
         watchmap[watch_desc] = cmdno;
     }
     running = 1;
@@ -660,27 +662,26 @@ void watcheval(int sz, watchCommand* wcs )
         
         for(int i=0; i<length;)
         {
-            
             struct inotify_event *event = (struct inotify_event *) &buffer[i];
 
-            if((event->mask & IN_CLOSE_WRITE ))
+            if(event->mask & (IN_MODIFY & ~IN_CLOSE_WRITE))
             {
-                fstream fileop;
-                fileop.open(arr[watchmap[event->wd]],ios::in);
-                string curr;
+                char buf[10000];
+                clear(buf);
                 int index = watchmap[event->wd];
                 if(running)
-                printf("%s %u\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ",wcs[index].argv,(unsigned)time(NULL),index+1);
+                    printf("%s %u\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ",wcs[index].argv,(unsigned)time(NULL),index+1);
                 
-                while(getline(fileop,curr))
-                {
-                    if(running)
-                    cout<<curr<<"\n";
+                read(tempfile_rfds[watchmap[event->wd]], buf, 10000);
+                if(running){
+                    printf("%s\n",buf);
+                    printf("->->->->->->->->->->->->->->->->->->->\n");
                 }
-                if(running)
-                printf("->->->->->->->->->->->->->->->->->->->\n");
             }
-            
+            else if(event->mask & IN_CLOSE_WRITE)
+            {
+                Lseek(tempfile_rfds[watchmap[event->wd]], 0, SEEK_SET);
+            }
             i += EVENT_SIZE + event->len;
         }
         
