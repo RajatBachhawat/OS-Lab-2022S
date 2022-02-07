@@ -270,7 +270,7 @@ int main()
                     getch();
                 }
             }
-            else {
+            else if(c >= 32) { /* Printing Characters of the ASCII Table */
                 putchar(c);
                 cmdline[cmdline_cnt++] = c;
             }
@@ -285,25 +285,27 @@ int main()
         if(strcmp(cmdline,"quit\n")==0)
             stopShell();
     
-        /* Add to history*/
-        string command(cmdline);
-        
-        addToHist(commands,command);
-        char* firstSpace;
-        watchcmd = 0;
-        char* temp = cmdline;
-        while(*temp ==' ')
-            temp++;
-        if(firstSpace = strchr(temp,' '))
-        {
-            *firstSpace = '\0';
-            if(strcmp(temp,"multiWatch")==0)
-                watchcmd =1;
-            *firstSpace = ' ';
-        }
-        /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
+        /* Go further if the cmd is non-empty (1 for the newline at the end)*/
         if(strlen(cmdline) > 1){
+            /* Add to history*/
+            string command(cmdline);
+            
+            addToHist(commands,command);
+            char* firstSpace;
+            watchcmd = 0;
+            char* temp = cmdline;
+            while(*temp ==' ')
+                temp++;
+            if(firstSpace = strchr(temp,' '))
+            {
+                *firstSpace = '\0';
+                if(strcmp(temp,"multiWatch")==0)
+                    watchcmd =1;
+                *firstSpace = ' ';
+            }
+            /* Check if command is multiWatch */
             if(watchcmd == 0)
+                /* Evaluate the command */
                 eval(cmdline);
             else 
             {
