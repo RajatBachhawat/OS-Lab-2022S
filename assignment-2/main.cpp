@@ -187,7 +187,7 @@ int autocomplete(char *line_buf){
         printf("Enter the number corresponding to a file (1 to %d): ", num_matches); fflush(stdout);
         scanf("%d", &option_num);
         if(option_num < 1 || option_num > num_matches){
-            printf("Out of range error");
+            printf("Index #%d is out of range\n", option_num);
             return -1;
         }
 
@@ -227,7 +227,7 @@ int main()
         for(int i=0;i<MAXLINE;i++){
             cmdline[i]='\0';
         }
-        int num_matches = 0;
+        int num_matches = -1;
         int history_displayed = 0;
         while (1) {
             c = getch();
@@ -246,7 +246,7 @@ int main()
                 history_displayed = 1;
                 break;
             }
-            else if(c == KEY_BACKSPACE) {
+            else if(c == KEY_ERASE || c == KEY_BACKSPACE) {
                 putchar('\b');
                 putchar(' ');
                 putchar('\b');
@@ -265,12 +265,18 @@ int main()
                 putchar('\n');
                 stopShell();
             }
+            else if(c == KEY_ESCAPE){
+                if(getch() == '['){
+                    getch();
+                }
+            }
             else {
                 putchar(c);
                 cmdline[cmdline_cnt++] = c;
             }
             prevc = c;
         }
+        prevc = c;
 
         if(history_displayed == 1){
             continue;

@@ -1,3 +1,76 @@
+echo p
+
+echo s
+echo
+history
+eccccho
+eccc;2D;2D
+esdfecho
+echocc
+grep -nr ./i main.cpp
+multiWatch -t ["echo $PEATH","grep -nr ./a"]
+multiWatch ["./inf"]
+multiWatch ["echo $PATH"]
+multiWatch ["echo $PATH"]
+multiWatch ["grep -nr ./a","echo $PAHTTH"]
+multiWatch ["echo $PATH"]
+multiWatch ["echo p"]
+multiWatch ["echo p"]
+multiWatch ["echo p"]
+multiWatch ["echo $PATH"]
+echo d
+multiWatch "e["echo $APATH"]
+multiWatch ["grep -nr ./i","echo $PATH"]
+clear
+ls termraw.h
+echo peace
+ls out.txt
+ps
+ps
+cleep 4
+sleep 5
+ps
+sleep 5
+ls out.txt
+ls out.txt
+
+echo p
+
+
+
+ls ou.txt
+clear
+ps
+ps
+ps
+ps
+clear
+ps
+ps
+ps
+sort > ou.txt < inp.txt > out.txt
+sleep 15 &
+ps
+ps
+sleep 15 &
+ps
+s
+s
+./inf &
+sort > ou.txt < inp.txt > out.txt &
+sort > ou.txt < inp.txt > out.txt
+sort > ou.txt < inp.txt
+sort > out.txt < ipn.txt
+sort < inp.txt > out.txt
+sed -i "s/ /\n/g" inp.txt
+cat inp.txt | sed "s/ /\n/g" | sort > out.txt
+cat inp.txt | sed "s/ /\n/g" | sort > out.txt[D[D[D[t
+cat inp.txt | sed "s/ /\n/g" | sort
+clear
+cat inp.txt
+sort < inp.txt
+ls -l
+clear
 multiWatch ["./inf"]
 multiWatch ["./inf","./inf"] > mastimasti
 multiWatch -t ["ps","./inf"]
@@ -98812,139 +98885,3 @@ history.txt
 history
 history 
 history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-make
-ls
-ls
-make
-./wish
-make 
-./wish
-make 
-make 
-./wish
-make 
-./wish
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-history
-histort
-cat history.txt
-history
-history
-history
-history
-history
-history
-history.txt
-history
-history 
-history
-history 
-history
-history
-cat history.txt
-history
-ls
-ls
-ls
-make
-./wish
-make 
-./wish
-make 

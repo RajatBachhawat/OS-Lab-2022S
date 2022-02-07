@@ -8,9 +8,11 @@
 struct termios oldterm, newterm;
 
 #define KEY_ENTER       0x000a
+#define KEY_ESCAPE      0x001b
 #define KEY_TAB         0x0009
 #define KEY_CTRL_R      0x0012
-#define KEY_BACKSPACE   oldterm.c_cc[VERASE]
+#define KEY_ERASE   oldterm.c_cc[VERASE]
+#define KEY_BACKSPACE   0x0008
 #define EOT             0x0004
 
 char getch(void)
