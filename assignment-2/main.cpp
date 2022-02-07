@@ -3,7 +3,6 @@
 #include "termraw.h"
 #include <sys/inotify.h>
 #include <poll.h>
-#include <time.h>
 
 #define EVENT_SIZE  ( sizeof (struct inotify_event) )
 #define BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
@@ -680,11 +679,7 @@ void watcheval(int sz, watchCommand* wcs )
                 int index = watchmap[event->wd];                
                 read(tempfile_rfds[watchmap[event->wd]], buf, 10000);
                 if(running && strlen(buf) > 0){
-                    time_t rawtime;
-                    struct tm * timeinfo;
-                    time(&rawtime);
-                    timeinfo = localtime(&rawtime);
-                    printf("\"%s\", Current time: %s\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ", wcs[index].argv, asctime(timeinfo), index+1);
+                    printf("\"%s\", %ld :\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ", wcs[index].argv, time(NULL), index+1);
                     printf("%s\n",buf);
                     printf("->->->->->->->->->->->->->->->->->->->\n");
                 }

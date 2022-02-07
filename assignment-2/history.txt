@@ -1,5 +1,6 @@
 multiWatch ["echo path"]
 multiWatch ["echo path"]
+multiWatch ["echo path"]
 multiWatch ["echo $PATH"]
 echo e
 echo e
