@@ -77,6 +77,7 @@ void printMatrix(double** mat, int rows, int cols)
 
 int main(int argc, char *argv[]) 
 {
+   srand(0);
    int NP,NW,MATS;
    cout<<"Number of Producers: ";
    cin>>NP;
@@ -102,7 +103,7 @@ int main(int argc, char *argv[])
        {
            while(true)
            {
-               
+               sleep(rand()%4);
                if(shaddr->jobCounter>=MATS)
                {
                    cout<<"exit\n";
@@ -111,7 +112,7 @@ int main(int argc, char *argv[])
                while(shaddr->count == QUEUE_SZ);
               // P(&shaddr->mutex);
                computingJob cj(i,0,shaddr->jobCounter);
-               cout<<"Added: "<<cj.matid<<" "<<shaddr->count<<"\n";
+               cout<<"Computing Job Added\nProducer No:"<<cj.producerNo<<" Pid:"<<getpid()<<" Matrix No:"<<cj.matid<<"\n";
                shaddr->jobCounter+=1;
                shaddr->cjQueue[shaddr->back] = cj;
                shaddr->back = (shaddr->back+1)%QUEUE_SZ;
@@ -126,20 +127,23 @@ int main(int argc, char *argv[])
        {
            while(true)
            {
+               sleep(rand()%4);
                while(shaddr->count == 0);
               // P(&shaddr->mutex);
                computingJob cj = shaddr->cjQueue[shaddr->front];
                shaddr->front = (shaddr->front+1)%QUEUE_SZ;
-               cout<<"Matrix: "<<cj.matid<<" "<<shaddr->count<<"\n";
+               cout<<"Computed matrix "<<cj.matid<<" at pid:"<<getpid()<<"\n";
                shaddr->count-=1;
               // V(&shaddr->mutex);
            }
            
        }
    }
-   sleep(100);
+   while(!(shaddr->jobCounter == MATS && shaddr->count<=0));
+
    shmdt(shaddr);
    shmctl(shmid, IPC_RMID, 0);
+   exit(0);
 //    for(int i =0; i<QUEUE_SZ; i++)
 //    {
 //        shaddr->cjQueue[i].matid = i;
