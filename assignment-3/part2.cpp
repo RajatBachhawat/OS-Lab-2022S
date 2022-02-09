@@ -11,6 +11,8 @@
 #include<string.h>
 #include <wait.h>
 #include <pthread.h>
+#include <sys/shm.h>
+#include <fcntl.h>
 #include <semaphore.h>
 
 pthread_mutex_t count_mutex;
@@ -91,6 +93,10 @@ int main(int argc, char *argv[])
 
    shmid = shmget(SHM_KEY, sizeof(sharedMem), IPC_CREAT|0600); 
    shaddr = (sharedMem*)shmat(shmid,NULL,0);
+
+   sem_t* sem;
+   sem = sem_open ("hang", O_CREAT , 0644, 1); 
+   cout<<errno<<"\n";
    shaddr->front =0;
    shaddr->back = 0;
    shaddr->jobCounter = 0;
@@ -104,20 +110,20 @@ int main(int argc, char *argv[])
            while(true)
            {
                sleep(rand()%4);
+               //sem_wait(sem);
                if(shaddr->jobCounter>=MATS)
                {
                    cout<<"exit\n";
                    exit(0);
                }
                while(shaddr->count == QUEUE_SZ);
-              // P(&shaddr->mutex);
                computingJob cj(i,0,shaddr->jobCounter);
                cout<<"Computing Job Added\nProducer No:"<<cj.producerNo<<" Pid:"<<getpid()<<" Matrix No:"<<cj.matid<<"\n";
                shaddr->jobCounter+=1;
                shaddr->cjQueue[shaddr->back] = cj;
                shaddr->back = (shaddr->back+1)%QUEUE_SZ;
                shaddr->count+=1;
-               //V(&shaddr->mutex);
+               //sem_post(sem);
            }
        }
    }
@@ -128,43 +134,37 @@ int main(int argc, char *argv[])
            while(true)
            {
                sleep(rand()%4);
-               while(shaddr->count == 0);
-              // P(&shaddr->mutex);
-               computingJob cj = shaddr->cjQueue[shaddr->front];
-               shaddr->front = (shaddr->front+1)%QUEUE_SZ;
-               cout<<"Computed matrix "<<cj.matid<<" at pid:"<<getpid()<<"\n";
-               shaddr->count-=1;
-              // V(&shaddr->mutex);
+               
+               
+               
+               while(shaddr->count == 1);    
+               sem_wait(sem);
+               cout<<"Consumer "<<i<<"\n";
+               sleep(rand()%4);
+               if(shaddr->count>1)
+               {           
+                computingJob cj = shaddr->cjQueue[shaddr->front];
+                shaddr->front = (shaddr->front+1)%QUEUE_SZ;
+                cout<<"Computed matrix "<<cj.matid<<" at pid:"<<getpid()<<"\n";
+                shaddr->count-=1;
+               }
+               sem_post(sem);
            }
            
        }
    }
-   while(!(shaddr->jobCounter == MATS && shaddr->count<=0));
+   
+   while(!(shaddr->jobCounter == MATS && shaddr->count<=1));
 
    shmdt(shaddr);
    shmctl(shmid, IPC_RMID, 0);
    exit(0);
-//    for(int i =0; i<QUEUE_SZ; i++)
-//    {
-//        shaddr->cjQueue[i].matid = i;
-//        shaddr->cjQueue[i].producerNo = i;
-//        shaddr->cjQueue[i].status = 0;
-//        shaddr->cjQueue[i].mat[0][0] = rand()%10;
-//        shaddr->cjQueue[i].mat[0][1] = rand()%10;
-//        shaddr->cjQueue[i].mat[1][0] = rand()%10;
-//        shaddr->cjQueue[i].mat[1][1] = rand()%10;
-//    }
-//    for(int i =0; i<QUEUE_SZ; i++)
-//    {
-//        cout<<shaddr->cjQueue[i].matid<<" ";
-//        cout<<shaddr->cjQueue[i].producerNo<<" ";
-//        cout<<shaddr->cjQueue[i].status<<"\n";
-//        cout<<shaddr->cjQueue[i].mat[0][0]<<" ";
-//        cout<<shaddr->cjQueue[i].mat[0][1]<<"\n";
-//        cout<<shaddr->cjQueue[i].mat[1][0]<<" ";
-//        cout<<shaddr->cjQueue[i].mat[1][1]<<"\n***\n";
-//    }
-   
+   sleep(10);
+   sem_unlink("hang");
+   sem_close(sem);
+   cout<<"End\n";
+   sleep(10);
+
    
    return 0;
 }
