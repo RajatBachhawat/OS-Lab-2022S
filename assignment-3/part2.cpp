@@ -94,14 +94,15 @@ int main(int argc, char *argv[])
    shmid = shmget(SHM_KEY, sizeof(sharedMem), IPC_CREAT|0600); 
    shaddr = (sharedMem*)shmat(shmid,NULL,0);
 
-   sem_t* sem;
-   sem = sem_open ("hang", O_CREAT , 0644, 1); 
-   cout<<errno<<"\n";
+   sem_t* sem,semp;
+   sem = sem_open ("/semap", O_CREAT , 0644, 1); 
+   cout<<sem<<"\n";
    shaddr->front =0;
    shaddr->back = 0;
    shaddr->jobCounter = 0;
    shaddr->count =0;
    //sem_init(&shaddr->mutex,0,0);
+   
 
    for(int i=0; i<NP;i++)
    {
@@ -110,20 +111,23 @@ int main(int argc, char *argv[])
            while(true)
            {
                sleep(rand()%4);
-               //sem_wait(sem);
                if(shaddr->jobCounter>=MATS)
                {
-                   cout<<"exit\n";
+                   cout<<"producer exit\n";
                    exit(0);
                }
                while(shaddr->count == QUEUE_SZ);
-               computingJob cj(i,0,shaddr->jobCounter);
-               cout<<"Computing Job Added\nProducer No:"<<cj.producerNo<<" Pid:"<<getpid()<<" Matrix No:"<<cj.matid<<"\n";
-               shaddr->jobCounter+=1;
-               shaddr->cjQueue[shaddr->back] = cj;
-               shaddr->back = (shaddr->back+1)%QUEUE_SZ;
-               shaddr->count+=1;
-               //sem_post(sem);
+               sem_wait(sem);
+               if(shaddr->jobCounter < MATS)
+               {
+                computingJob cj(i,0,shaddr->jobCounter);
+                cout<<"Computing Job Added\nProducer No:"<<cj.producerNo<<" Pid:"<<getpid()<<" Matrix No:"<<cj.matid<<"\n";
+                shaddr->jobCounter+=1;
+                shaddr->cjQueue[shaddr->back] = cj;
+                shaddr->back = (shaddr->back+1)%QUEUE_SZ;
+                shaddr->count+=1;
+               }
+               sem_post(sem);
            }
        }
    }
@@ -133,10 +137,12 @@ int main(int argc, char *argv[])
        {
            while(true)
            {
+               if(shaddr->jobCounter == MATS && shaddr->count==1)
+               {
+                   cout<<"consumer exit\n";
+                   exit(0);
+               }
                sleep(rand()%4);
-               
-               
-               
                while(shaddr->count == 1);    
                sem_wait(sem);
                cout<<"Consumer "<<i<<"\n";
@@ -145,22 +151,27 @@ int main(int argc, char *argv[])
                {           
                 computingJob cj = shaddr->cjQueue[shaddr->front];
                 shaddr->front = (shaddr->front+1)%QUEUE_SZ;
+                computingJob cj2 = shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ];
+
+                /* mult logic goes here 
+                
+
+
+                */
+
                 cout<<"Computed matrix "<<cj.matid<<" at pid:"<<getpid()<<"\n";
                 shaddr->count-=1;
                }
                sem_post(sem);
            }
-           
        }
    }
    
-   while(!(shaddr->jobCounter == MATS && shaddr->count<=1));
+   while(!(shaddr->jobCounter == MATS && shaddr->count==1));
 
    shmdt(shaddr);
    shmctl(shmid, IPC_RMID, 0);
-   exit(0);
-   sleep(10);
-   sem_unlink("hang");
+   sem_unlink("/semap");
    sem_close(sem);
    cout<<"End\n";
    sleep(10);
@@ -168,4 +179,3 @@ int main(int argc, char *argv[])
    
    return 0;
 }
-
