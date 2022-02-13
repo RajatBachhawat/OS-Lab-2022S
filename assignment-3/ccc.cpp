@@ -1,4 +1,3 @@
-/* Filename: shm_write.c */
 #include <stdio.h>
 #include <iostream>
 #include <sys/ipc.h>
@@ -15,26 +14,23 @@
 #include <fcntl.h>
 #include <semaphore.h>
 
-pthread_mutex_t count_mutex;
-
-#define SHM_KEY 0x1234
-#define SEM_KEY 0x54321
-#define QUEUE_SZ 40000
-#define N 2
-#define ALL_SET -1
+#define SHM_KEY 0x1234      /* Shared memory key */
+#define QUEUE_SZ 10         /* Size of bounded buffer (queue) */
+#define N 1000              /* Dimension of the 2-D matrices */
+#define ALL_SET -1          /* All bits set to 1 */
 
 using namespace std;
 
 void P(sem_t *sem)
 {
-     if (sem_wait(sem) < 0)
-          perror("P error");
+    if (sem_wait(sem) < 0)
+        perror("P error");
 }
 
 void V(sem_t *sem)
 {
-     if (sem_post(sem) < 0)
-          perror("V error");
+    if (sem_post(sem) < 0)
+        perror("V error");
 }
 
 struct computingJob 
@@ -143,20 +139,6 @@ void mat_product(int C[][N], int copied, int blocknum, int A[][N/2], int B[][N/2
     int en_row = ((blocknum >> 1) & 1) ? N-1 : N/2-1;
     int st_col = (blocknum & 1) ? N/2 : 0;
     int en_col = (blocknum & 1) ? N-1 : N/2-1;
-    // cout<<"A in mat_prod:\n";
-    // for(int i=0;i<N/2;i++){
-    //     for(int j=0;j<N/2;j++){
-    //         printf("%d ", A[i][j]);
-    //     }
-    //     printf("\n");
-    // }
-    // cout<<"B in mat_prod:\n";
-    // for(int i=0;i<N/2;i++){
-    //     for(int j=0;j<N/2;j++){
-    //         printf("%d ", B[i][j]);
-    //     }
-    //     printf("\n");
-    // }
     for(int i_c=st_row, i_a=0; i_c<=en_row; i_c++, i_a++){
         for(int j_c=st_col, i_b=0; j_c<=en_col; j_c++, i_b++){
             int res = 0;
@@ -191,8 +173,8 @@ int main(int argc, char *argv[])
     shaddr = (sharedMem*)shmat(shmid,NULL,0);
 
     sem_t* sem;
-    sem = sem_open("/mutex3", O_CREAT, 0644, 1); 
-    cout<<errno<<" "<<sem<<"\n";
+    sem = sem_open("/mutex6", O_CREAT, 0644, 1); 
+    cout<<errno<<" "<<shmid<<" "<<sem<<"\n";
     shaddr->wgrp = 1;
     shaddr->front = 0;
     shaddr->back = 0;
@@ -206,7 +188,7 @@ int main(int argc, char *argv[])
         pid_t pid = fork ();
         if (pid < 0) {
             /* check for error  */
-            sem_unlink ("/mutex3");   
+            sem_unlink ("/mutex6");   
             sem_close(sem);
             /* unlink prevents the semaphore existing forever */
             /* if a crash occurs during the execution         */
@@ -227,7 +209,7 @@ int main(int argc, char *argv[])
                 // printf("producer2 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
 
                 /* Wait when queue is full */
-                while(shaddr->count == QUEUE_SZ){
+                while(shaddr->count >= QUEUE_SZ - 1){
                     if(shaddr->jobCounter >= MATS)
                     {
                         /* If MATS number of jobs have been added, stop producer */
@@ -239,7 +221,7 @@ int main(int argc, char *argv[])
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem);
                 // printf("producer3 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                if(shaddr->count < QUEUE_SZ && shaddr->jobCounter < MATS){
+                if(shaddr->count < QUEUE_SZ-1 && shaddr->jobCounter < MATS){
                     /* When there is space in queue and jobs are left to be produced, produce job */
                     int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
                     computingJob cj(i, 0xFF2, matid, 0);
@@ -250,12 +232,12 @@ int main(int argc, char *argv[])
                     shaddr->cjQueue[shaddr->back] = cj;
                     shaddr->back = (shaddr->back + 1)%QUEUE_SZ;
                     shaddr->count+=1;
-                    for(int i=0;i<N;i++){
-                        for(int j=0;j<N;j++){
-                            printf("%d ", cj.mat[i][j]);
-                        }
-                        printf("\n");
-                    }
+                    // for(int i=0;i<N;i++){
+                    //     for(int j=0;j<N;j++){
+                    //         printf("%d ", cj.mat[i][j]);
+                    //     }
+                    //     printf("\n");
+                    // }
                     cout<<"Computing Job Added\nProducer No:"<<cj.producer_no<<" Pid:"<<getpid()<<" Matrix No:"<<cj.matid<<"\n";
                 }
                 // printf("producer4 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
@@ -271,7 +253,7 @@ int main(int argc, char *argv[])
         pid_t pid = fork ();
         if (pid < 0) {
             /* check for error  */
-            sem_unlink ("/mutex3");   
+            sem_unlink ("/mutex6");   
             sem_close(sem);  
             /* unlink prevents the semaphore existing forever */
             /* if a crash occurs during the execution         */
@@ -287,7 +269,7 @@ int main(int argc, char *argv[])
                    exit(0);
                 }
                 sleep(rand()%4);
-                // printf("producer1 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
+                // printf("worker1 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 
                 /* Wait if there is only one job in the queue */
                 while(shaddr->count == 1){
@@ -297,7 +279,8 @@ int main(int argc, char *argv[])
                         exit(0);
                     }
                 }
-
+                
+                // printf("worker2 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 /* Wait if all blocks have been accessed 2 times */
                 while((shaddr->cjQueue[shaddr->front].status & 0xF) == 0xF){
                     if(shaddr->jobCounter == MATS && shaddr->count == 1)
@@ -306,17 +289,19 @@ int main(int argc, char *argv[])
                         exit(0);
                     }
                 }
-                // printf("producer2 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
+                // printf("worker3 - numjobs in queue : %d , pid: %d  front %d\n", shaddr->count, getpid(),(shaddr->cjQueue[shaddr->front].status >> 4));
 
                 /* Wait if the computation for the matrix is not complete yet */
-                while(((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) != 0xFF){
+                while(((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) != 0xFF || ((shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) != 0xFF){
+                    // if(shaddr->wgrp == 6)
+                    //     cout<<"status : "<<((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF)<<"\n";
                     if(shaddr->jobCounter == MATS && shaddr->count == 1)
                     {
                         cout<<"consumer exit \n"<<getpid();
                         exit(0);
                     }
                 }
-                // printf("producer3 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
+                // printf("worker4 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
 
                 int A_block[N/2][N/2], B_block[N/2][N/2];
                 int A_status, A_wgrp;
@@ -324,13 +309,13 @@ int main(int argc, char *argv[])
                 
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem);
-                // printf("producer4 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
+                // printf("worker5 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 sleep(rand()%4);
                 
-                if((shaddr->count > 1) && ((shaddr->cjQueue[shaddr->front].status & 0xF) != 0xF) && (((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) == 0xFF))
+                if((shaddr->count > 1) && ((shaddr->cjQueue[shaddr->front].status & 0xF) != 0xF) && (((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) == 0xFF) && (((shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) == 0xFF))
                 {              
                     is_working = 1;
-                    // printf("producer5 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
+                    // printf("worker6 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                     computingJob *A = &(shaddr->cjQueue[shaddr->front]);
                     A->workergrp = shaddr->wgrp;
                     computingJob *B = &(shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ]);
@@ -355,7 +340,7 @@ int main(int argc, char *argv[])
 
                     // cout<<"A_status : %x"<<A_status<<"at pid "<<getpid()<<"\n";
                     cout<<"Copied matrix "<<A->matid<<"A block num "<< ((A->status >> 2) & 0b0011) <<" to local at pid:"<<getpid()<<"\n";
-                    // cout<<"Copied matrix "<<B->matid<<"B block num "<< (A->status & 0b0011) <<" to local at pid:"<<getpid()<<"\n";
+                    cout<<"Copied matrix "<<B->matid<<"B block num "<< (A->status & 0b0011) <<" to local at pid:"<<getpid()<<"\n";
                     cout<<"count : "<<shaddr->count<<" workergrp : "<<shaddr->wgrp<<"\n";
                     
                     if((A->status & 0xF) == 0xF){
@@ -371,8 +356,6 @@ int main(int argc, char *argv[])
                         shaddr->wgrp++;
                     }
                 }
-
-                V(sem);
                 // printf("outside lock : A_status : %x at pid %d\n", A_status, getpid());
                 // sleep(rand()%4);
                 /* ---!!! Critical Section End !!!--- */
@@ -381,15 +364,15 @@ int main(int argc, char *argv[])
                     /* Search for the corresponding C matrix in the queue */
                     computingJob *C;
                     int flag=0;
-                    for(int i = shaddr->front; i != (shaddr->back+1)%QUEUE_SZ; i=(i+1)%QUEUE_SZ){
+                    for(int i = 0; i < QUEUE_SZ; i++){
                         if((((shaddr->cjQueue[i].status >> 4) & 0xFF) != 0xFF) && (shaddr->cjQueue[i].workergrp == A_wgrp)){
                             C = &(shaddr->cjQueue[i]);
-                            for(int i=0;i<N;i++){
-                                for(int j=0;j<N;j++){
-                                    printf("%d ", C->mat[i][j]);
-                                }
-                                printf("\n");
-                            }
+                            // for(int i=0;i<N;i++){
+                            //     for(int j=0;j<N;j++){
+                            //         printf("%d ", C->mat[i][j]);
+                            //     }
+                            //     printf("\n");
+                            // }
                             flag=1;
                             break;
                         }
@@ -402,6 +385,7 @@ int main(int argc, char *argv[])
                     int blocknum = ((A_status & 0b1000) >> 2) + (A_status & 0b0001);
                     // printf("A_status : %x blocknum : %d at pid %d\n", A_status, blocknum, getpid());
                     int copied = ((C->status >> (4 + blocknum)) & 1);
+                    // printf("before prod : %x\n", C->status >> 4);
                     mat_product(C->mat, copied, blocknum, A_block, B_block);
                     if(copied){
                         C->status = (C->status | (1 << (blocknum + 8)));
@@ -409,28 +393,34 @@ int main(int argc, char *argv[])
                     else{
                         C->status = (C->status | (1 << (blocknum + 4)));
                     }
+                    // printf("after prod : %x\n", C->status >> 4);
                 }
+                V(sem);
             }      
         }
     }
-    printf("parent1 - count : %d\n", shaddr->count);
-    while(!(shaddr->jobCounter == MATS && shaddr->count == 1));
-    printf("parent2 - count : %d\n", shaddr->count);
+    // printf("parent1 - count : %d\n", shaddr->count);
+    while(!(shaddr->jobCounter == MATS && shaddr->count == 1)){
+        // cout<<"MATS: "<<MATS<<"\n";
+        // cout<<"jobcounter: "<<shaddr->jobCounter<<" "<<shaddr->count<<"\n";
+    }
+    // printf("parent2 - count : %d\n", shaddr->count);
     /* Wait if the computation for the matrix is not complete yet */
     while(((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) != 0xFF);
 
-    printf("parent3 - count : %d\n", shaddr->count);
+    // printf("parent3 - count : %d\n", shaddr->count);
 
+    int trace = 0;
     for(int i=0;i<N;i++){
-        for(int j=0;j<N;j++){
-            printf("%d ", shaddr->cjQueue[shaddr->front].mat[i][j]);
-        }
-        printf("\n");
+        trace += shaddr->cjQueue[shaddr->front].mat[i][i];
     }
-
+    P(sem);
+    printf("Sum of elements in principal diagonal is %d\n", trace);
+    V(sem);
+    waitpid(-1, NULL, 0);
     shmdt(shaddr);
     shmctl(shmid, IPC_RMID, 0);
-    sem_unlink("/mutex3");
+    sem_unlink("/mutex6");
     sem_close(sem);
     cout<<getpid()<<" End parent\n";
     sleep(10);
