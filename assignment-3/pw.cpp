@@ -6,10 +6,8 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
 #include <wait.h>
 #include <pthread.h>
-#include <sys/shm.h>
 #include <fcntl.h>
 #include <semaphore.h>
 
@@ -77,12 +75,12 @@ struct randomID {
 /* Shared memory structure */
 struct sharedMem      
 {
-    int jobCounter;     /* No. of jobs added to the queue */
+    int job_counter;     /* No. of jobs added to the queue */
     int wgrp;           /* Worker group of the workers currently accessing jobs */ 
     int front;          /* Index of front of queue */
     int back;           /* Index of back of queue */
     int count;          /* Number of elements in queue currently */
-    computing_job cjQueue[QUEUE_SZ]; /* Job queue of size QUEUE_SZ (bounded buffer) */
+    computing_job cj_queue[QUEUE_SZ]; /* Job queue of size QUEUE_SZ (bounded buffer) */
 };
 
 /* Set the access_progress bits (rightmost 4 bits) of status */
@@ -114,6 +112,7 @@ void set_block_access_status(int *status){
     }
 }
 
+/* Copy a block from source to dest */
 void shared_to_localblock(int dest[][N/2], int source[][N], int blocknum){
     int st_row = ((blocknum >> 1) & 1) ? N/2 : 0;
     int en_row = ((blocknum >> 1) & 1) ? N-1 : N/2-1;
@@ -127,6 +126,7 @@ void shared_to_localblock(int dest[][N/2], int source[][N], int blocknum){
     }
 }
 
+/* Add/copy source to a block in dest specified by blocknum */
 void localblock_to_shared(int dest[][N], int source[][N/2], int blocknum, int copy){
     int st_row = ((blocknum >> 1) & 1) ? N/2 : 0;
     int en_row = ((blocknum >> 1) & 1) ? N-1 : N/2-1;
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
     shaddr->wgrp = 1;
     shaddr->front = 0;
     shaddr->back = 0;
-    shaddr->jobCounter = 0;
+    shaddr->job_counter = 0;
     shaddr->count = 0;
 
     /* Initialise a randomID variable */
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
                 // printf("producer1 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 
                 /* Exit condition : All jobs have been added to the queue */
-                if(shaddr->jobCounter >= MATS)
+                if(shaddr->job_counter >= MATS)
                 {
                     /* If MATS number of jobs have been added, stop producer */
                     // printf("1Producer w/ PID %d Exitted\n", getpid());
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
 
                 /* Wait when queue is full */
                 while(shaddr->count >= QUEUE_SZ - 1){
-                    if(shaddr->jobCounter >= MATS)
+                    if(shaddr->job_counter >= MATS)
                     {
                         /* If MATS number of jobs have been added, stop producer */
                         // printf("2Producer w/ PID %d Exitted\n", getpid());
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
                 // printf("producer3 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 
                 /* When there is space in queue and jobs are left to be produced, produce job */
-                if(shaddr->count < QUEUE_SZ-1 && shaddr->jobCounter < MATS){
+                if(shaddr->count < QUEUE_SZ-1 && shaddr->job_counter < MATS){
                     int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
                     computing_job cj(i, 0xFF2, matid, 0); /* Initialise a computing job */
                     
@@ -250,8 +250,8 @@ int main(int argc, char *argv[])
                     sleep(rand()%4);
 
                     shaddr->count+=1;
-                    shaddr->jobCounter+=1;
-                    shaddr->cjQueue[shaddr->back] = cj;
+                    shaddr->job_counter+=1;
+                    shaddr->cj_queue[shaddr->back] = cj;
                     shaddr->back = (shaddr->back + 1)%QUEUE_SZ;
                     
                     printf("Produced Matrix | Producer No.: %d | Producer PID: %d | Mat ID: %d\n", cj.producer_no, getpid(), cj.matid);
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
             while(1)
             {
                 /* Exit condition : All jobs have been added to the queue and only one job remains */
-                if(shaddr->jobCounter == MATS && shaddr->count == 1)
+                if(shaddr->job_counter == MATS && shaddr->count == 1)
                 {
                    // printf("1Worker w/ PID %d Exitted\n", getpid());
                    exit(0);
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
                 
                 /* Wait if there is less than one job in the queue */
                 while(shaddr->count <= 1){
-                    if(shaddr->jobCounter == MATS && shaddr->count == 1)
+                    if(shaddr->job_counter == MATS && shaddr->count == 1)
                     {
                         // printf("2Worker w/ PID %d Exitted\n", getpid());
                         exit(0);
@@ -300,19 +300,19 @@ int main(int argc, char *argv[])
                 // printf("worker2 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 
                 /* Wait if all blocks have been accessed 2 times */
-                while((shaddr->cjQueue[shaddr->front].status & 0xF) == 0xF){
-                    if(shaddr->jobCounter == MATS && shaddr->count == 1)
+                while((shaddr->cj_queue[shaddr->front].status & 0xF) == 0xF){
+                    if(shaddr->job_counter == MATS && shaddr->count == 1)
                     {
                         // printf("3Worker w/ PID %d Exitted\n", getpid());
                         exit(0);
                     }
                 }
                 
-                // printf("worker3 - numjobs in queue : %d , pid: %d  front %d\n", shaddr->count, getpid(),(shaddr->cjQueue[shaddr->front].status >> 4));
+                // printf("worker3 - numjobs in queue : %d , pid: %d  front %d\n", shaddr->count, getpid(),(shaddr->cj_queue[shaddr->front].status >> 4));
 
                 /* Wait if the multplication computation for A or B matrix is not complete yet */
-                while((((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) != 0xFF) || (((shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) != 0xFF)){
-                    if(shaddr->jobCounter == MATS && shaddr->count == 1)
+                while((((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) != 0xFF) || (((shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) != 0xFF)){
+                    if(shaddr->job_counter == MATS && shaddr->count == 1)
                     {
                         // printf("4Worker w/ PID %d Exitted\n", getpid());
                         exit(0);
@@ -339,13 +339,13 @@ int main(int argc, char *argv[])
                 sleep(rand()%4);
                 
                 /* When there are >=2 jobs in queue and the front 2 jobs have both  */
-                if((shaddr->count > 1) && ((shaddr->cjQueue[shaddr->front].status & 0xF) != 0xF) && (((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) == 0xFF) && (((shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) == 0xFF))
+                if((shaddr->count > 1) && ((shaddr->cj_queue[shaddr->front].status & 0xF) != 0xF) && (((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) == 0xFF) && (((shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) == 0xFF))
                 {              
                     is_working = 1;
                     // printf("worker6 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                    computing_job *A = &(shaddr->cjQueue[shaddr->front]);
+                    computing_job *A = &(shaddr->cj_queue[shaddr->front]);
                     A->workergrp = shaddr->wgrp;
-                    computing_job *B = &(shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ]);
+                    computing_job *B = &(shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ]);
                     B->workergrp = shaddr->wgrp;
                     
                     /* If this is the first worker */
@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
                         /* When there is space in queue and jobs are left to be produced, produce job */
                         int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
                         computing_job C(shaddr->wgrp, 0x002, matid, shaddr->wgrp);
-                        shaddr->cjQueue[shaddr->back] = C;
+                        shaddr->cj_queue[shaddr->back] = C;
                         shaddr->back = (shaddr->back + 1)%QUEUE_SZ;
                         shaddr->count += 1;
                     }
@@ -392,8 +392,8 @@ int main(int argc, char *argv[])
                     computing_job *C;
                     int flag = 0;
                     for(int i = 0; i < QUEUE_SZ; i++){
-                        if((((shaddr->cjQueue[i].status >> 4) & 0xFF) != 0xFF) && (shaddr->cjQueue[i].workergrp == A_wgrp)){
-                            C = &(shaddr->cjQueue[i]);
+                        if((((shaddr->cj_queue[i].status >> 4) & 0xFF) != 0xFF) && (shaddr->cj_queue[i].workergrp == A_wgrp)){
+                            C = &(shaddr->cj_queue[i]);
                             flag = 1;
                             break;
                         }
@@ -444,25 +444,25 @@ int main(int argc, char *argv[])
     // printf("parent1 - count : %d\n", shaddr->count);
     
     /* Wait if all jobs have not been pushed to the queue or if only one job is not remaining */
-    while(!(shaddr->jobCounter == MATS && shaddr->count == 1));
+    while(!(shaddr->job_counter == MATS && shaddr->count == 1));
     
     // printf("parent2 - count : %d\n", shaddr->count);
 
     /* Wait if the computation for the last remaining matrix is not complete yet */
-    while(((shaddr->cjQueue[shaddr->front].status >> 4) & 0xFF) != 0xFF);
+    while(((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) != 0xFF);
 
     // printf("parent3 - count : %d\n", shaddr->count);
 
     /* Calculate the sum of the principal diagonal of the resultant matrix */
     int trace = 0;
     for(int i=0;i<N;i++){
-        trace += shaddr->cjQueue[shaddr->front].mat[i][i];
+        trace += shaddr->cj_queue[shaddr->front].mat[i][i];
     }
 
     printf("Sum of elements in principal diagonal is %d\n", trace);
 
     /* Wait for all children to terminate */
-    while(waitpid(-1, NULL, 0) > 0);
+    // while(waitpid(-1, NULL, 0) > 0);
     
     /* Detach shared mem segment */
     shmdt(shaddr);
@@ -477,4 +477,3 @@ int main(int argc, char *argv[])
     printf("Parent w/ PID %d Exitted\n", getpid());
     return 0;
 }
-
