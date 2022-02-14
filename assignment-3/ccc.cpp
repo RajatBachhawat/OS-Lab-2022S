@@ -33,7 +33,7 @@ void V(sem_t *sem)
         perror("V error");
 }
 
-struct computingJob 
+struct computing_job 
 {
     int producer_no;     /* ID of producer/workergrp that produced this job */
     int status;         /* Rightmost 12 bits are important
@@ -42,7 +42,7 @@ struct computingJob
     int matid;          /* Matrix ID */
     int mat[N][N];      /* Matrix */
     int workergrp;      /* Worker group number of the worker processing this job */
-    computingJob(int pn, int s, int m, int w):producer_no(pn),status(s),matid(m),workergrp(w)
+    computing_job(int pn, int s, int m, int w):producer_no(pn),status(s),matid(m),workergrp(w)
     {
         for(int i=0; i<N;i++)
         {
@@ -78,7 +78,7 @@ struct sharedMem
     int front;
     int back;
     int count;
-    computingJob cjQueue[QUEUE_SZ];
+    computing_job cjQueue[QUEUE_SZ];
 };
 
 void printMatrix(double** mat, int rows, int cols)
@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
     shaddr->back = 0;
     shaddr->jobCounter = 0;
     shaddr->count = 0;
+    
     randomID rand_idx;
     rand_idx.init();
 
@@ -224,7 +225,7 @@ int main(int argc, char *argv[])
                 if(shaddr->count < QUEUE_SZ-1 && shaddr->jobCounter < MATS){
                     /* When there is space in queue and jobs are left to be produced, produce job */
                     int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
-                    computingJob cj(i, 0xFF2, matid, 0);
+                    computing_job cj(i, 0xFF2, matid, 0);
                     
                     sleep(rand()%4);
 
@@ -316,16 +317,16 @@ int main(int argc, char *argv[])
                 {              
                     is_working = 1;
                     // printf("worker6 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                    computingJob *A = &(shaddr->cjQueue[shaddr->front]);
+                    computing_job *A = &(shaddr->cjQueue[shaddr->front]);
                     A->workergrp = shaddr->wgrp;
-                    computingJob *B = &(shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ]);
+                    computing_job *B = &(shaddr->cjQueue[(shaddr->front+1)%QUEUE_SZ]);
                     B->workergrp = shaddr->wgrp;
                     
                     /* If this is the first worker */
                     if((A->status & 0xF) == 0b0010){
                         /* When there is space in queue and jobs are left to be produced, produce job */
                         int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
-                        computingJob C(shaddr->wgrp, 0x002, matid, shaddr->wgrp);
+                        computing_job C(shaddr->wgrp, 0x002, matid, shaddr->wgrp);
                         shaddr->cjQueue[shaddr->back] = C;
                         shaddr->back = (shaddr->back + 1)%QUEUE_SZ;
                         shaddr->count += 1;
@@ -362,7 +363,7 @@ int main(int argc, char *argv[])
 
                 if(is_working){
                     /* Search for the corresponding C matrix in the queue */
-                    computingJob *C;
+                    computing_job *C;
                     int flag=0;
                     for(int i = 0; i < QUEUE_SZ; i++){
                         if((((shaddr->cjQueue[i].status >> 4) & 0xFF) != 0xFF) && (shaddr->cjQueue[i].workergrp == A_wgrp)){

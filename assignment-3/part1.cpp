@@ -73,47 +73,57 @@ int main(int argc, char *argv[])
    int r1,c1,r2,c2;
    double **A,**B;
    int i,j;
+   int shmid_A, shmid_B, shmid_C;
+   
    cout<<"Enter dimensions of matrix A: ";
    cin>>r1>>c1;
+   shmid_A = shmget(SHM_KEY, matrixSpace(sizeof(double),r1,c1), IPC_CREAT|0600); 
+   A = (double**)shmat(shmid_A,NULL,0);
+   // making matrix in shared mem
+   assignSpace((void**)A,r1,c1,sizeof(double));
+
    cout<<"Enter elements of matrix A\n";
-   initializeMatrix(A,r1,c1);
    for(i=0;i<r1;i++)
    {
       for(j=0;j<c1;j++)
       {
         // cin>>A[i][j];
-        A[i][j]=-9+rand()%19;
+        A[i][j] = rand()%10 + 1;
       }
    }
 
    cout<<"Enter dimensions of matrix B: ";
    cin>>r2>>c2;
+   shmid_B = shmget(SHM_KEY+1, matrixSpace(sizeof(double),r2,c2), IPC_CREAT|0600); 
+   B = (double**)shmat(shmid_B,NULL,0);
+   // making matrix in shared mem
+   assignSpace((void**)B,r2,c2,sizeof(double));
+
    cout<<"Enter elements of matrix B\n";
-   initializeMatrix(B,r2,c2);
    for(i=0;i<r2;i++)
    {
       for(j=0;j<c2;j++)
       {
-         //cin>>B[i][j];
-         B[i][j]=-9+rand()%19;
+         B[i][j] = rand()%10 + 1;
+         // cin>>B[i][j];
       }
    }
+
+   double** C;
+   shmid_C = shmget(SHM_KEY+2, matrixSpace(sizeof(double),r1,c2), IPC_CREAT|0600); 
+   C = (double**)shmat(shmid_C,NULL,0);
+   // making matrix in shared mem
+   assignSpace((void**)C,r1,c2,sizeof(double));
+   
    if(c1!=r2)
    {
       cout<<"Matrices cannot be multiplied\n";
       exit(0);
    }
    cout<<"Matrix A:\n";
-   printMatrix(A,r1,c1);
+   // printMatrix(A,r1,c1);
    cout<<"Matrix B:\n";
-   printMatrix(B,r2,c2);
-
-   double** C;
-   int shmid;
-   shmid = shmget(SHM_KEY, matrixSpace(sizeof(double),r1,c2), IPC_CREAT|0600); 
-   C = (double**)shmat(shmid,NULL,0);
-   // making matrix in shared mem
-   assignSpace((void**)C,r1,c2,sizeof(double));
+   // printMatrix(B,r2,c2);
 
    for(i=0;i<r1;i++)
    {
@@ -130,7 +140,7 @@ int main(int argc, char *argv[])
    pid_t waitpid;
    while ((waitpid = wait(NULL)) > 0);
    cout<<"Matrix C:\n";
-   printMatrix(C,r1,c2);
+   // printMatrix(C,r1,c2);
 
    // temporary function for checking
       auto checkfunc =  [&]() -> void 
@@ -165,10 +175,13 @@ int main(int argc, char *argv[])
          cout<<"NO\n";
       };
 
-      //checkfunc();
+      checkfunc();
       shmdt(C);
-      shmctl(shmid, IPC_RMID, 0);
-
+      shmctl(shmid_C, IPC_RMID, 0);
+      shmdt(B);
+      shmctl(shmid_B, IPC_RMID, 0);
+      shmdt(A);
+      shmctl(shmid_A, IPC_RMID, 0);
    
    return 0;
 }
