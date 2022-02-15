@@ -211,6 +211,8 @@ int main(int argc, char *argv[])
         }
         else if(pid == 0)
         {
+            /* Seed rand() with PID of process */
+            srand(getpid());
             /* Inside CHILD */
             while(1)
             {
@@ -236,6 +238,9 @@ int main(int argc, char *argv[])
                     }
                 }
 
+                /* sleep for random time between 0 to 3 seconds */
+                sleep(rand()%4);
+
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem); /* Lock */
 
@@ -245,16 +250,13 @@ int main(int argc, char *argv[])
                 if(shaddr->count < QUEUE_SZ-1 && shaddr->job_counter < MATS){
                     int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
                     computing_job cj(i, 0xFF2, matid, 0); /* Initialise a computing job */
-                    
-                    /* sleep for random time between 0 to 3 seconds */
-                    sleep(rand()%4);
 
                     shaddr->count+=1;
                     shaddr->job_counter+=1;
                     shaddr->cj_queue[shaddr->back] = cj;
                     shaddr->back = (shaddr->back + 1)%QUEUE_SZ;
                     
-                    printf("Produced Matrix | Producer No.: %d | Producer PID: %d | Mat ID: %d\n", cj.producer_no, getpid(), cj.matid);
+                    printf("Produced Matrix #%d | Producer No.: %d | Producer PID: %d | Mat ID: %d\n", shaddr->job_counter, cj.producer_no, getpid(), cj.matid);
                 }
                 // printf("producer4 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 V(sem);
@@ -329,16 +331,18 @@ int main(int argc, char *argv[])
                 int is_working = 0;
                 /* Matrix IDs */
                 int A_matid, B_matid;
+                /* Producers of the Matrices */
+                int A_producer, B_producer;
                 
+                /* sleep for random time between 0 to 3 seconds */
+                sleep(rand()%4);
+
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem);
                 
                 // printf("worker5 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 
-                /* sleep for random time between 0 to 3 seconds */
-                sleep(rand()%4);
-                
-                /* When there are >=2 jobs in queue and the front 2 jobs have both  */
+                /* When there are >=2 jobs in queue, there is work left and the front 2 jobs both have their values ready (mult product stored) */
                 if((shaddr->count > 1) && ((shaddr->cj_queue[shaddr->front].status & 0xF) != 0xF) && (((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) == 0xFF) && (((shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) == 0xFF))
                 {              
                     is_working = 1;
@@ -352,7 +356,7 @@ int main(int argc, char *argv[])
                     if((A->status & 0xF) == 0b0010){
                         /* When there is space in queue and jobs are left to be produced, produce job */
                         int matid = 1 + rand_idx.get(); /* Random index between 1 and 100000 */
-                        computing_job C(shaddr->wgrp, 0x002, matid, shaddr->wgrp);
+                        computing_job C(-shaddr->wgrp, 0x002, matid, shaddr->wgrp);
                         shaddr->cj_queue[shaddr->back] = C;
                         shaddr->back = (shaddr->back + 1)%QUEUE_SZ;
                         shaddr->count += 1;
@@ -368,8 +372,10 @@ int main(int argc, char *argv[])
                     A_status = A->status;
                     A_matid = A->matid;
                     B_matid = B->matid;
+                    A_producer = A->producer_no;
+                    B_producer = B->producer_no;
 
-                    printf("Read A%d & B%d | Mat IDs: %d & %d\n", ((A->status >> 2) & 0b0011), (A->status & 0b0011), A->matid, B->matid);
+                    printf("Read A%d & B%d | Mat IDs: %d & %d | Producer Nos.: %d & %d\n", ((A->status >> 2) & 0b0011), (A->status & 0b0011), A->matid, B->matid, A_producer, B_producer);
                     printf("No. of jobs in queue: %d | Worker PID: %d | Worker Grp: %d\n", shaddr->count, getpid(), shaddr->wgrp);
                     
                     /* If this is the last worker */
@@ -381,8 +387,6 @@ int main(int argc, char *argv[])
                         shaddr->wgrp++;
                     }
                 }
-
-                // printf("outside lock : A_status : %x at pid %d\n", A_status, getpid());
                 
                 V(sem);
                 /* ---!!! Critical Section End !!!--- */
@@ -420,7 +424,7 @@ int main(int argc, char *argv[])
                         localblock_to_shared(C->mat, D_block, blocknum, 0);
                         C->status = (C->status | (1 << (blocknum + 8)));
                         
-                        printf("Added A%d * B%d to C%d | Mat IDs: %d & %d\n", ((A_status >> 2) & 0b0011), (A_status & 0b0011), blocknum, A_matid, B_matid);
+                        printf("Added A%d * B%d to C%d | Mat IDs: %d & %d | Producer Nos.: %d & %d\n", ((A_status >> 2) & 0b0011), (A_status & 0b0011), blocknum, A_matid, B_matid, A_producer, B_producer);
                         printf("Worker PID: %d | Worker Grp: %d\n", getpid(), A_wgrp);
                     }
                     else{
@@ -428,7 +432,7 @@ int main(int argc, char *argv[])
                         localblock_to_shared(C->mat, D_block, blocknum, 1);
                         C->status = (C->status | (1 << (blocknum + 4)));
                         
-                        printf("Copied A%d * B%d to C%d | Mat IDs: %d & %d\n", ((A_status >> 2) & 0b0011), (A_status & 0b0011), blocknum, A_matid, B_matid);
+                        printf("Copied A%d * B%d to C%d | Mat IDs: %d & %d | Producer Nos.: %d & %d\n", ((A_status >> 2) & 0b0011), (A_status & 0b0011), blocknum, A_matid, B_matid, A_producer, B_producer);
                         printf("Worker PID: %d | Worker Grp: %d\n", getpid(), A_wgrp);
                     }
                     
@@ -462,7 +466,7 @@ int main(int argc, char *argv[])
     printf("Sum of elements in principal diagonal is %d\n", trace);
 
     /* Wait for all children to terminate */
-    // while(waitpid(-1, NULL, 0) > 0);
+    while(waitpid(-1, NULL, 0) > 0);
     
     /* Detach shared mem segment */
     shmdt(shaddr);
