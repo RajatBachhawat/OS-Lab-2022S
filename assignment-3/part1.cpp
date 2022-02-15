@@ -10,7 +10,6 @@
 #include <string.h>
 #include <wait.h>
 
-
 #define SHM_KEY 0x1234
 
 /* ProcessData struct */
@@ -65,10 +64,48 @@ void printMatrix(double** mat, int rows, int cols)
     {
         for(int j=0;j<cols;j++)
         {
-            printf("%d ", mat[i][j]);
+            printf("%lf ", mat[i][j]);
         }
         printf("\n");
     }
+}
+
+/* Returns a random double between low and high */
+double drand(double low, double high)
+{
+    return ((double)rand() * (high - low))/(double)RAND_MAX + low;
+}
+
+/* Check if C stores the product AB */
+void checkfunc(double **A, double **B, double **C, int r1, int r2, int c1, int c2){
+    double checker[r1][c2];
+    for(int i=0;i<r1;i++)
+    {
+        for(int j=0;j<c2;j++)
+        {
+            checker[i][j]=0.0;
+            for(int k=0;k<r2;k++)
+            {
+                checker[i][j]+=A[i][k]*B[k][j];
+            }
+        }
+    }
+    bool f = true;
+    for(int i=0;i<r1;i++)
+    {
+        for(int j=0;j<c2;j++)
+        {
+            if(abs(C[i][j]-checker[i][j])>1e-3)
+            {
+                f=false;
+                //printf(C[i][j]<<" "<<checker[i][j]<<", ";
+            }
+        }
+    }
+    if(f)
+        printf("YES\n");
+    else 
+        printf("NO\n");
 }
 
 int main(int argc, char *argv[]) 
@@ -79,7 +116,7 @@ int main(int argc, char *argv[])
     int shmid_A, shmid_B, shmid_C;
     
     printf("Enter dimensions of matrix A: ");
-    scanf("%d %d", r1, c1);
+    scanf("%d %d", &r1, &c1);
     shmid_A = shmget(SHM_KEY, matrixSpace(sizeof(double), r1, c1), IPC_CREAT | 0600); 
     A = (double**)shmat(shmid_A, NULL, 0);
     /* Making matrix A in shared mem */
@@ -90,12 +127,12 @@ int main(int argc, char *argv[])
     {
         for(j=0;j<c1;j++)
         {
-            scanf("%d", &(A[i][j]));
+            scanf("%lf", &(A[i][j]));
         }
     }
 
     printf("Enter dimensions of matrix B: ");
-    scanf("%d %d", r2, c2);
+    scanf("%d %d", &r2, &c2);
     shmid_B = shmget(SHM_KEY+1, matrixSpace(sizeof(double), r2, c2), IPC_CREAT | 0600); 
     B = (double**)shmat(shmid_B, NULL, 0);
     /* Making matrix B in shared mem */
@@ -106,7 +143,7 @@ int main(int argc, char *argv[])
     {
         for(j=0;j<c2;j++)
         {
-            scanf("%d", &(B[i][j]));
+            scanf("%lf", &(B[i][j]));
         }
     }
 
@@ -134,7 +171,7 @@ int main(int argc, char *argv[])
         {
             pid_t pid = fork();
             if(pid < 0){
-                fprintf(stderr, "Fork error\n");
+                fprintf(stderr, "Fork error. errno %d: %s\n", errno, strerror(errno));
                 exit(0);
             }
             else if(pid == 0)
@@ -155,40 +192,8 @@ int main(int argc, char *argv[])
     printf("Matrix C:\n");
     printMatrix(C, r1, c2);
 
-    /* Temporary function for checking if multiplication was correct */
-    auto checkfunc =  [&]() -> void 
-    {
-        double checker[r1][c2];
-        for(i=0;i<r1;i++)
-        {
-            for(j=0;j<c2;j++)
-            {
-                checker[i][j]=0.0;
-                for(int k=0;k<r2;k++)
-                {
-                    checker[i][j]+=A[i][k]*B[k][j];
-                }
-            }
-        }
-        bool f = true;
-        for(i=0;i<r1;i++)
-        {
-            for(j=0;j<c2;j++)
-            {
-                if(abs(C[i][j]-checker[i][j])>1e-3)
-                {
-                    f=false;
-                    //printf(C[i][j]<<" "<<checker[i][j]<<", ";
-                }
-            }
-        }
-        if(f)
-        printf("YES\n");
-        else 
-        printf("NO\n");
-    };
-
-    // checkfunc();
+    /* Check if multiplication was correct */
+    // checkfunc(A, B, C, r1, r2, c1, c2);
 
     /* Detach all the three matrices from shared memory */
     shmdt(C);
