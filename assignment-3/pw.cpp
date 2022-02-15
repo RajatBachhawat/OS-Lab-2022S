@@ -151,8 +151,12 @@ void mat_product(int C[][N/2], int A[][N/2], int B[][N/2]){
     for(int i_c=0; i_c<N/2; i_c++){
         for(int j_c=0; j_c<N/2; j_c++){
             C[i_c][j_c] = 0;
-            for(int x=0; x<N/2; x++){
-                C[i_c][j_c] += A[i_c][x]*B[x][j_c];
+        }
+    }
+    for(int i_c=0; i_c<N/2; i_c++){
+        for(int k=0; k<N/2; k++){
+            for(int j_c=0; j_c<N/2; j_c++){
+                C[i_c][j_c] += A[i_c][k]*B[k][j_c];
             }
         }
     }
@@ -239,7 +243,8 @@ int main(int argc, char *argv[])
                 }
 
                 /* sleep for random time between 0 to 3 seconds */
-                sleep(rand()%4);
+                timespec tme = {rand()%4, 0};
+                nanosleep(&tme, NULL);
 
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem); /* Lock */
@@ -335,7 +340,8 @@ int main(int argc, char *argv[])
                 int A_producer, B_producer;
                 
                 /* sleep for random time between 0 to 3 seconds */
-                sleep(rand()%4);
+                timespec tme = {rand()%4, 0};
+                nanosleep(&tme, NULL);
 
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem);
