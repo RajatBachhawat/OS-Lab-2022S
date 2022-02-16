@@ -175,6 +175,10 @@ int main(int argc, char *argv[])
     scanf("%d", &NW);
     printf("Number of Matrices: ");
     scanf("%d", &MATS);
+    if(NP <= 0 || NW <= 0 || MATS <= 0){
+        fprintf(stderr, "Number of producers, workers and jobs must be positive (> 0)\n");
+        exit(0);
+    }
 
     /* Create a shared memory segment with the key SHM_KEY */
     int shmid;

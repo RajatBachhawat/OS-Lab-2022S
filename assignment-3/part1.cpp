@@ -1,4 +1,3 @@
-/* Filename: shm_write.c */
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -115,8 +114,15 @@ int main(int argc, char *argv[])
     int i,j;
     int shmid_A, shmid_B, shmid_C;
     
+    /* Input dimensions of A */
     printf("Enter dimensions of matrix A: ");
     scanf("%d %d", &r1, &c1);
+    if(r1 <= 0 || c1 <= 0){
+        fprintf(stderr, "Dimensions of matrix must be positive (> 0)\n");
+        exit(0);
+    }
+    
+    /* Get shared mem block for A */
     shmid_A = shmget(SHM_KEY, matrixSpace(sizeof(double), r1, c1), IPC_CREAT | 0600); 
     A = (double**)shmat(shmid_A, NULL, 0);
     /* Making matrix A in shared mem */
@@ -131,8 +137,15 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* Input dimensions of B */
     printf("Enter dimensions of matrix B: ");
     scanf("%d %d", &r2, &c2);
+    if(r2 <= 0 || c2 <= 0){
+        fprintf(stderr, "Dimensions of matrix must be positive (> 0)\n");
+        exit(0);
+    }
+
+    /* Get shared mem block for B */
     shmid_B = shmget(SHM_KEY+1, matrixSpace(sizeof(double), r2, c2), IPC_CREAT | 0600); 
     B = (double**)shmat(shmid_B, NULL, 0);
     /* Making matrix B in shared mem */
@@ -148,6 +161,7 @@ int main(int argc, char *argv[])
     }
 
     double** C;
+    /* Get shared mem block for C */
     shmid_C = shmget(SHM_KEY+2, matrixSpace(sizeof(double), r1, c2), IPC_CREAT | 0600); 
     C = (double**)shmat(shmid_C, NULL, 0);
     /* Making matrix C in shared mem */
