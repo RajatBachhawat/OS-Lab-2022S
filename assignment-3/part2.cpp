@@ -180,6 +180,14 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    /* Open a named semaphore */
+    sem_t* sem;
+    sem = sem_open("semaphore", O_CREAT, 0644, 1); 
+    if(sem == SEM_FAILED){
+        fprintf(stderr, "Error in opening semaphore : %s", strerror(errno));
+        exit(1);
+    }
+
     /* Create a shared memory segment with the key SHM_KEY */
     int shmid;
     sharedMem* shaddr;
@@ -187,12 +195,12 @@ int main(int argc, char *argv[])
     shmid = shmget(SHM_KEY, sizeof(sharedMem), IPC_CREAT | 0644); 
     if(shmid < 0) {
         fprintf(stderr, "Error in allocating shared memory : %s", strerror(errno));
-        exit(0);
+        /* Unlink semaphore */
+        sem_unlink ("semaphore");   
+        sem_close(sem);
+        exit(1);
     }
     shaddr = (sharedMem*)shmat(shmid,NULL,0);
-
-    sem_t* sem;
-    sem = sem_open("/mutex8", O_CREAT, 0644, 1); 
     
     /* Initialise the shared variables */
     shaddr->wgrp = 1;
@@ -208,14 +216,20 @@ int main(int argc, char *argv[])
     /* Generate NP number of producers using fork() */
     for(int i=0; i<NP; i++)
     {
-        pid_t pid = fork ();
+        pid_t pid = fork();
         if (pid < 0) {
             /* check for error  */
-            sem_unlink ("/mutex8");   
-            sem_close(sem);
+            /* Detach shared memory segment from address space */
+            shmdt(shaddr);
+            /* Deallocate shared memory segment */
+            shmctl(shmid, IPC_RMID, 0);
             /* unlink prevents the semaphore existing forever */
             /* if a crash occurs during the execution         */
+            sem_unlink ("semaphore");   
+            sem_close(sem);
+
             printf("Fork error.\n");
+            exit(1);
         }
         else if(pid == 0)
         {
@@ -223,25 +237,29 @@ int main(int argc, char *argv[])
             srand(getpid());
             /* Inside CHILD */
             while(1)
-            {
-                // printf("producer1 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                
+            {                
                 /* Exit condition : All jobs have been added to the queue */
                 if(shaddr->job_counter >= MATS)
                 {
                     /* If MATS number of jobs have been added, stop producer */
-                    // printf("1Producer w/ PID %d Exitted\n", getpid());
+                    /* Detach shared memory segment from address space */
+                    shmdt(shaddr);
+                    /* Unlink semaphore */
+                    sem_unlink ("semaphore");   
+                    sem_close(sem);
                     exit(0);
                 }
-
-                // printf("producer2 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
 
                 /* Wait when queue is full */
                 while(shaddr->count >= QUEUE_SZ - 1){
                     if(shaddr->job_counter >= MATS)
                     {
                         /* If MATS number of jobs have been added, stop producer */
-                        // printf("2Producer w/ PID %d Exitted\n", getpid());
+                        /* Detach shared memory segment from address space */
+                        shmdt(shaddr);
+                        /* Unlink semaphore */
+                        sem_unlink ("semaphore");   
+                        sem_close(sem);
                         exit(0);
                     }
                 }
@@ -252,8 +270,6 @@ int main(int argc, char *argv[])
 
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem); /* Lock */
-
-                // printf("producer3 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 
                 /* When there is space in queue and jobs are left to be produced, produce job */
                 if(shaddr->count < QUEUE_SZ-1 && shaddr->job_counter < MATS){
@@ -267,70 +283,83 @@ int main(int argc, char *argv[])
                     
                     printf("Produced Matrix #%d | Producer No.: %d | Producer PID: %d | Mat ID: %d\n", shaddr->job_counter, cj.producer_no, getpid(), cj.matid);
                 }
-                // printf("producer4 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                 V(sem);
                 /* ---!!! Critical Section End !!!--- */
             }
-            exit(0);
         }
     }
 
     for(int i=0; i<NW; i++)
     {
-        pid_t pid = fork ();
+        pid_t pid = fork();
         if (pid < 0) {
             /* check for error  */
-            sem_unlink ("/mutex8");   
-            sem_close(sem);  
-            /* unlink prevents the semaphore existing forever */
-            /* if a crash occurs during the execution         */
+            /* Detach shared memory segment from address space */
+            shmdt(shaddr);
+            /* Deallocate shared memory segment */
+            shmctl(shmid, IPC_RMID, 0);
+            /* Unlink semaphore */
+            sem_unlink("semaphore");   
+            sem_close(sem);
             printf("Fork error.\n");
+            exit(1);
         }
         else if(pid == 0)
         {
+            /* Seed rand() with PID of process */
+            srand(getpid());
+            /* Inside CHILD */
             while(1)
             {
                 /* Exit condition : All jobs have been added to the queue and only one job remains */
                 if(shaddr->job_counter == MATS && shaddr->count == 1)
                 {
-                   // printf("1Worker w/ PID %d Exitted\n", getpid());
-                   exit(0);
+                    /* Detach shared memory segment from address space */
+                    shmdt(shaddr);
+                    /* Unlink semaphore */
+                    sem_unlink ("semaphore");   
+                    sem_close(sem);
+                    exit(0);
                 }
-                
-                // printf("worker1 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                
+                                
                 /* Wait if there is less than one job in the queue */
                 while(shaddr->count <= 1){
                     if(shaddr->job_counter == MATS && shaddr->count == 1)
                     {
-                        // printf("2Worker w/ PID %d Exitted\n", getpid());
+                        /* Detach shared memory segment from address space */
+                        shmdt(shaddr);
+                        /* Unlink semaphore */
+                        sem_unlink ("semaphore");   
+                        sem_close(sem);
                         exit(0);
                     }
                 }
-                
-                // printf("worker2 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                
+
                 /* Wait if all blocks have been accessed 2 times */
                 while((shaddr->cj_queue[shaddr->front].status & 0xF) == 0xF){
                     if(shaddr->job_counter == MATS && shaddr->count == 1)
                     {
-                        // printf("3Worker w/ PID %d Exitted\n", getpid());
+                        /* Detach shared memory segment from address space */
+                        shmdt(shaddr);
+                        /* Unlink semaphore */
+                        sem_unlink ("semaphore");
+                        sem_close(sem);
                         exit(0);
                     }
                 }
                 
-                // printf("worker3 - numjobs in queue : %d , pid: %d  front %d\n", shaddr->count, getpid(),(shaddr->cj_queue[shaddr->front].status >> 4));
-
                 /* Wait if the multplication computation for A or B matrix is not complete yet */
                 while((((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) != 0xFF) || (((shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) != 0xFF)){
                     if(shaddr->job_counter == MATS && shaddr->count == 1)
                     {
-                        // printf("4Worker w/ PID %d Exitted\n", getpid());
+                        /* Detach shared memory segment from address space */
+                        shmdt(shaddr);
+                        /* Unlink semaphore */
+                        sem_unlink ("semaphore");
+                        sem_close(sem);                       
                         exit(0);
                     }
                 }
-
-                // printf("worker4 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
 
                 /* Local 2D matrices to store A{ik}, B{kj} and D{ijk} */
                 int A_block[N/2][N/2], B_block[N/2][N/2], D_block[N/2][N/2];
@@ -349,14 +378,11 @@ int main(int argc, char *argv[])
 
                 /* ---!!! Critical Section Start !!!--- */
                 P(sem);
-                
-                // printf("worker5 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
-                
+                                
                 /* When there are >=2 jobs in queue, there is work left and the front 2 jobs both have their values ready (mult product stored) */
                 if((shaddr->count > 1) && ((shaddr->cj_queue[shaddr->front].status & 0xF) != 0xF) && (((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) == 0xFF) && (((shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ].status >> 4) & 0xFF) == 0xFF))
                 {              
                     is_working = 1;
-                    // printf("worker6 - numjobs in queue : %d , pid: %d\n", shaddr->count, getpid());
                     computing_job *A = &(shaddr->cj_queue[shaddr->front]);
                     A->workergrp = shaddr->wgrp;
                     computing_job *B = &(shaddr->cj_queue[(shaddr->front+1)%QUEUE_SZ]);
@@ -449,23 +475,16 @@ int main(int argc, char *argv[])
                     V(sem);
                     /* ---!!! Critical Section End !!!--- */
                     
-                    // printf("after prod : %x\n", C->status >> 4);
                 }
-            }
-            exit(0);      
+            }     
         }
     }
-    // printf("parent1 - count : %d\n", shaddr->count);
     
     /* Wait if all jobs have not been pushed to the queue or if only one job is not remaining */
     while(!(shaddr->job_counter == MATS && shaddr->count == 1));
     
-    // printf("parent2 - count : %d\n", shaddr->count);
-
     /* Wait if the computation for the last remaining matrix is not complete yet */
     while(((shaddr->cj_queue[shaddr->front].status >> 4) & 0xFF) != 0xFF);
-
-    // printf("parent3 - count : %d\n", shaddr->count);
 
     /* Calculate the sum of the principal diagonal of the resultant matrix */
     int trace = 0;
@@ -478,12 +497,12 @@ int main(int argc, char *argv[])
     /* Wait for all children to terminate */
     while(waitpid(-1, NULL, 0) > 0);
     
-    /* Detach shared mem segment */
+    /* Detach shared memory segment from address space */
     shmdt(shaddr);
+    /* Deallocate shared memory segment */
     shmctl(shmid, IPC_RMID, 0);
-    
     /* Unlink and close semaphore */
-    sem_unlink("/mutex8");
+    sem_unlink("semaphore");
     sem_close(sem);
 
     time_t tend = time(NULL);

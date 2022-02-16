@@ -142,6 +142,19 @@ int main(int argc, char *argv[])
     scanf("%d %d", &r2, &c2);
     if(r2 <= 0 || c2 <= 0){
         fprintf(stderr, "Dimensions of matrix must be positive (> 0)\n");
+        /* Detach matrix A from address space of parent and dealloc shared mem */
+        shmdt(A);
+        shmctl(shmid_A, IPC_RMID, 0);
+        exit(0);
+    }
+    
+    /* Check if matrices can be multiplied */
+    if(c1!=r2)
+    {
+        printf("Matrices cannot be multiplied\n");
+        /* Detach matrix A from address space of parent and dealloc shared mem */
+        shmdt(A);
+        shmctl(shmid_A, IPC_RMID, 0);
         exit(0);
     }
 
@@ -166,12 +179,6 @@ int main(int argc, char *argv[])
     C = (double**)shmat(shmid_C, NULL, 0);
     /* Making matrix C in shared mem */
     assignSpace((void**)C, r1, c2, sizeof(double));
-    
-    if(c1!=r2)
-    {
-        printf("Matrices cannot be multiplied\n");
-        exit(0);
-    }
 
     printf("Matrix A:\n");
     printMatrix(A,r1,c1);
@@ -186,7 +193,14 @@ int main(int argc, char *argv[])
             pid_t pid = fork();
             if(pid < 0){
                 fprintf(stderr, "Fork error. errno %d: %s\n", errno, strerror(errno));
-                exit(0);
+                /* Detach all the three matrices from address space of parent and dealloc shared mem */
+                shmdt(C);
+                shmctl(shmid_C, IPC_RMID, 0);
+                shmdt(B);
+                shmctl(shmid_B, IPC_RMID, 0);
+                shmdt(A);
+                shmctl(shmid_A, IPC_RMID, 0);
+                exit(1);
             }
             else if(pid == 0)
             {
@@ -194,6 +208,10 @@ int main(int argc, char *argv[])
                 ProcessData pd = {A, B, C, r2, i, j};
                 /* Caclulate C{i,j} in this process */
                 mult(&pd);
+                /* Detach all the three matrices from address space of child */
+                shmdt(C);
+                shmdt(B);
+                shmdt(A);
                 exit(0);
             }
         }
@@ -209,7 +227,7 @@ int main(int argc, char *argv[])
     /* Check if multiplication was correct */
     // checkfunc(A, B, C, r1, r2, c1, c2);
 
-    /* Detach all the three matrices from shared memory */
+    /* Detach all the three matrices from address space of parent and dealloc shared mem */
     shmdt(C);
     shmctl(shmid_C, IPC_RMID, 0);
     shmdt(B);
