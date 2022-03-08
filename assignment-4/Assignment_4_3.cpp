@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -221,6 +222,19 @@ void *producer_runner(void *param){
     return NULL;
 }
 
+/* Cleanup work before exitting */
+void exit_cleanup(shared_mem *shaddr, int shmid){
+    /* Destroy the mutex locks */
+    pthread_mutex_destroy(&num_nodes_lock);
+    for(int i=0; i<MAX_NODES; i++){
+        pthread_mutex_destroy(&shaddr->tree[i].lock);
+    }
+    /* Detach the shared memory segment from the address space of this process */
+    shmdt(shaddr);
+    /* Remove the shared memory segment */
+    shmctl(shmid, IPC_RMID, NULL);
+}
+
 int main(){
 
     /* Making thread id the seed */
@@ -248,8 +262,18 @@ int main(){
     int num_producers, num_workers;
     printf("Enter the number of producer threads:\n");
     scanf("%d", &num_producers);
+    if(num_producers <= 0){
+        fprintf(stderr, "Number of producers must be positive\n");
+        exit_cleanup(shaddr, shmid);
+        exit(EXIT_FAILURE);
+    }
     printf("Enter the number of worker threads:\n");
     scanf("%d", &num_workers);
+    if(num_workers <= 0){
+        fprintf(stderr, "Number of workers must be positive\n");
+        exit_cleanup(shaddr, shmid);
+        exit(EXIT_FAILURE);
+    }
 
     /* Fork Process B that spawns the workers */
     pid_t pid = fork();
@@ -308,16 +332,7 @@ int main(){
 
     waitpid(-1, NULL, 0); /* Wait for Process B to terminate */
 
-    /* Cleanup work */
-    /* Destroy the mutex locks */
-    pthread_mutex_destroy(&num_nodes_lock);
-    for(int i=0; i<MAX_NODES; i++){
-        pthread_mutex_destroy(&shaddr->tree[i].lock);
-    }
-    /* Detach the shared memory segment from the address space of this process */
-    shmdt(shaddr);
-    /* Remove the shared memory segment */
-    shmctl(shmid, IPC_RMID, NULL);
+    exit_cleanup(shaddr, shmid);
 
     return 0;
 }
