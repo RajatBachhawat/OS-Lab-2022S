@@ -155,3 +155,18 @@ Node<T> *AVLTree<T>::endUtil(Node<T> *head){
         return head;
     return endUtil(head->right);
 }
+
+template <typename T>
+void AVLTree<T>::secondLastUtil(Node<T> *head, T *secondLastElement){
+    if(numNodes < 2){
+        return;
+    }
+    if(head->right == nullptr){
+        if(head->left != nullptr){
+            *secondLastElement = max(*secondLastElement, endUtil(head->left)->data);
+        }
+        return;
+    }
+    *secondLastElement = max(*secondLastElement, head->data);
+    return secondLastUtil(head->right, secondLastElement);
+}

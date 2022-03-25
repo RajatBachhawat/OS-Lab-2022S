@@ -49,6 +49,9 @@ public:
     Node<T> *end(){
         return endUtil(root);
     }
+    void secondLast(T *secondLastElement){
+        secondLastUtil(root, secondLastElement);
+    }
 private:
     int height(Node<T> *head);
     Node<T> *rightRotation(Node<T> *head);
@@ -59,6 +62,7 @@ private:
     Node<T> *lower_bound_util(Node <T> *head, T x);
     Node<T> *endUtil(Node<T> *head);
     void inorderUtil(Node<T> *head);
+    void secondLastUtil(Node<T> *head, T *secondLastElement);
 };
 
 #endif
