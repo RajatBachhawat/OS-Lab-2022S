@@ -1,8 +1,11 @@
 /* TODO
- * 1. mutex lock for print statements
- * 2. compactmem separate handling for boolean etc
- * 3. localAddress increment scheme change?
- * 4. definition of large hole based on size of allocated memory?
+ * L mutex lock for print statements
+ * P localAddress increment scheme change?
+ * P definition of large hole based on size of allocated memory?
+ * P error handling : a. invalid type passed, b. referring to variable that has been marked or deleted
+ * P when copyblocking mediumints, the 4th byte also gets copied, to do or not?
+ * P change reallocating policy during compactmem to largest first?
+ * logging lock nahi chal raha
  */
 #include "memlab.h"
 
@@ -11,22 +14,41 @@ BookkeepingMem *bk; /* Bookkeeping data structures */
 static unsigned int typeSize[4] = {4, 3, 1, 1};
 static unsigned char typeName[4][10] = {"Int", "MediumInt", "Char", "Boolean"};
 
+int Pthread_mutex_lock(pthread_mutex_t *__mutex){
+    int retval = pthread_mutex_lock(__mutex);
+    if(retval < 0){
+        fprintf(stderr, "Pthread_mutex_lock error: %s", strerror(errno));
+    }
+    return retval;
+}
+int Pthread_mutex_unlock(pthread_mutex_t *__mutex){
+    int retval = pthread_mutex_unlock(__mutex);
+    if(retval < 0){
+        fprintf(stderr, "Pthread_mutex_unlock error: %s", strerror(errno));
+    }
+    return retval;
+}
+
 /* BookkeepingMem constructor */
 BookkeepingMem::BookkeepingMem(){
     pthread_mutexattr_t attr;
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK_NP);
     /* Initialise mutex lock for compaction */
     pthread_mutex_init(&(this->compactLock), &attr);
+    pthread_mutex_init(&(this->loggingLock), &attr);
     pthread_mutexattr_destroy(&attr);
 }
 
 /* BookkeepingMem destructor */
 BookkeepingMem::~BookkeepingMem(){
     pthread_mutex_destroy(&(this->compactLock));
+    pthread_mutex_destroy(&(this->loggingLock));
 }
 
 /* PageTableEntry constructor */
 PageTableEntry::PageTableEntry(){
     pthread_mutexattr_t attr;
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK_NP);
     /* Initialise mutex lock for reading/writing the scope of a page table entry */
     pthread_mutex_init(&(this->mutexLock), &attr);
     pthread_mutexattr_destroy(&attr);
@@ -58,7 +80,7 @@ ostream &operator<<(ostream &op, const PageTableEntry &pte){
 int BookkeepingMem::findBestFitFreeSpace(unsigned int size){
     /* Find the smallest free space greater than size in freeSpaces */
     Node<pair<int,int>>* _fslb = freeSpaces.lower_bound({size, -1});
-    if(_fslb == NULL)
+    if(_fslb == nullptr)
     {
         return -1;
     }
@@ -99,6 +121,7 @@ int BookkeepingMem::findBestFitFreeSpace(unsigned int size){
 void createMem(int memSize) {
     bk = new BookkeepingMem;
     bk->sizeOfMem = memSize;
+    bk->freeMem = memSize;
     cout<<"- Allocated space for bookkeeping data structures\n";
     bk->freeSpaces.insert({memSize,0});
     bk->freeIntervals.insert({0,memSize});
@@ -106,6 +129,7 @@ void createMem(int memSize) {
     bk->logicalMem = (unsigned int *)malloc(memSize);
     cout<<"- Allocated space for required by user\n";
     cout<<"\n";
+    gettimeofday(&bk->st, NULL);
 }
 
 PageTableEntry *createVar(char varName[32], DataType type){
@@ -115,21 +139,29 @@ PageTableEntry *createVar(char varName[32], DataType type){
     {
         if(strcmp(pt->pteList[ind].name,varName) == 0 && pt->pteList[ind].scope >= 0)
         {
+            Pthread_mutex_lock(&bk->loggingLock);
             cout<<"Variable with name \'"<<varName<<"\' already exists\n";
-            return NULL;
+            Pthread_mutex_unlock(&bk->loggingLock);
+            return nullptr;
         }
     }
 
-    pthread_mutex_lock(&(bk->compactLock));
+    Pthread_mutex_lock(&(bk->compactLock));
 
     int spaceAssignedInd = bk->findBestFitFreeSpace(typeSize[type]);
     if(spaceAssignedInd == -1)
     {
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"No Space for Variable\n";
-        pthread_mutex_unlock(&(bk->compactLock));
-        return NULL;
+        Pthread_mutex_unlock(&bk->loggingLock);
+
+        Pthread_mutex_unlock(&(bk->compactLock));
+        return nullptr;
     }
-    cout<<"- \'"<<varName<<"\' assigned "<<typeSize[type]<<" bytes in memory\n";
+    bk->freeMem -= typeSize[type];
+    Pthread_mutex_lock(&bk->loggingLock);
+    printf("- \'%s\' assigned %d bytes in memory\n\n", varName, typeSize[type]);
+    Pthread_mutex_unlock(&bk->loggingLock);
     
     /* Add entry in page table */
     int idx = pt->numEntries;
@@ -141,11 +173,15 @@ PageTableEntry *createVar(char varName[32], DataType type){
     pt->pteList[idx].numElements = 1;
     pt->numEntries++;
     bk->localAddrCounter +=4;
+
+    Pthread_mutex_lock(&bk->loggingLock);
     cout<<"- Page table entry created for variable: \'"<<varName<<"\'\n";
     cout<<"type : "<<typeName[type]<<"\n";
     cout<<"local address : "<<bk->localAddrCounter - 4<<"\n";
     cout<<"logical address : "<<spaceAssignedInd<<"\n\n";
-    pthread_mutex_unlock(&(bk->compactLock));
+    Pthread_mutex_unlock(&bk->loggingLock);
+
+    Pthread_mutex_unlock(&(bk->compactLock));
 
     return &pt->pteList[idx];
 }
@@ -154,12 +190,16 @@ void assignValueInMem(int logicalAddr, int size, DataType type, int value)
 {
     if((type == Boolean && (value !=0 && value!=1)))
     {
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"Value Being Assigned Cannot Fit In DataType\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
         return;
     }
     if(type != Boolean && (value >=(1ll<<(8*typeSize[type]-1))|| value < -(1ll<<(8*typeSize[type]-1))))
     {
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"Value Being Assigned Cannot Fit In DataType\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
         return;
     }
 
@@ -179,21 +219,26 @@ void assignValueInMem(int logicalAddr, int size, DataType type, int value)
 
 void assignVar(PageTableEntry* ptr, int value)
 {
-    if(ptr == NULL)
+    if(ptr == nullptr)
     {
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"Invalid Pointer\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
         return;
     }
+    
     int logAdd = ptr->logicalAddr;
     int size = typeSize[ptr->type];
     assignValueInMem(logAdd,size,ptr->type,value);
+    Pthread_mutex_lock(&bk->loggingLock);
     cout<<"- Assign value to variable\n";
     cout<<ptr->name<<" := "<<value<<"\n\n";
+    Pthread_mutex_unlock(&bk->loggingLock);
 }
 
 int varValue(PageTableEntry* ptr)
 {
-    if(ptr==NULL)
+    if(ptr==nullptr)
     {
         cout<<"Invalid Pointer\n";
         return -1;
@@ -229,8 +274,10 @@ PageTableEntry* createArr(char arrName[32], DataType type, int elements){
     {
         if(strcmp(pt->pteList[ind].name,arrName)==0)
         {
+            Pthread_mutex_lock(&bk->loggingLock);
             cout<<"Variable with name \'"<<arrName<<"\' already exists\n";
-            return NULL;
+            Pthread_mutex_unlock(&bk->loggingLock);
+            return nullptr;
         }
     }
     int spaceneeded = 0;
@@ -241,22 +288,36 @@ PageTableEntry* createArr(char arrName[32], DataType type, int elements){
             spaceneeded = elements*typeSize[type];
             break;
         case MediumInt:
-            cout<<"- Word alignment : MediumInt array elements are stored at offsets of 4\nSo space needed for array is 4 * (numElements)\n\n";
-            spaceneeded = elements*typeSize[Int];
+            if(elements == 1){
+                spaceneeded = typeSize[type];
+            }
+            else{
+                Pthread_mutex_lock(&bk->loggingLock);
+                cout<<"- Word alignment : MediumInt array elements are stored at offsets of 4\nSo space needed for array is 4 * (numElements)\n";
+                Pthread_mutex_unlock(&bk->loggingLock);
+                spaceneeded = elements*typeSize[Int];
+            }
             break;
         case Boolean:
             spaceneeded = ((elements+7)/8);
             break;
     }
-    pthread_mutex_lock(&(bk->compactLock));
+    Pthread_mutex_lock(&(bk->compactLock));
     int spaceAssignedInd = bk->findBestFitFreeSpace(spaceneeded);
     if(spaceAssignedInd == -1)
-    {
+    {   
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"No Space for Array\n";
-        pthread_mutex_unlock(&(bk->compactLock));
-        return NULL;
+        Pthread_mutex_unlock(&bk->loggingLock);
+
+        Pthread_mutex_unlock(&(bk->compactLock));
+        return nullptr;
     }
-    cout<<"- \'"<<arrName<<"\' array assigned ( "<<typeSize[type]<<" * "<<elements<<" = ) "<<spaceneeded<<" bytes in memory\n";
+    bk->freeMem -= spaceneeded;
+    Pthread_mutex_lock(&bk->loggingLock);
+    cout<<"- \'"<<arrName<<"\' array assigned "<<spaceneeded<<" bytes (for "<<elements<<" elements) in memory\n";
+    Pthread_mutex_unlock(&bk->loggingLock);
+
     int idx = pt->numEntries;
     strcpy(pt->pteList[idx].name,arrName);
     pt->pteList[idx].type = type;
@@ -266,21 +327,27 @@ PageTableEntry* createArr(char arrName[32], DataType type, int elements){
     pt->pteList[idx].numElements = elements;
     pt->numEntries++;
     bk->localAddrCounter +=4;
+
+    Pthread_mutex_lock(&bk->loggingLock);
     cout<<"- Page table entry created for array: \'"<<arrName<<"\'\n";
     cout<<"type : "<<typeName[type]<<"\n";
     cout<<"local address : "<<bk->localAddrCounter - 4<<"\n";
     cout<<"logical address : "<<spaceAssignedInd<<"\n";
     cout<<"number of elements in array : "<<elements<<"\n\n";
-    pthread_mutex_unlock(&(bk->compactLock));
+    Pthread_mutex_unlock(&bk->loggingLock);
+
+    Pthread_mutex_unlock(&(bk->compactLock));
 
     return &(pt->pteList[idx]);
 }
 
 void assignArr(PageTableEntry* ptr, int index, int value)
 {
-    if(ptr==NULL)
+    if(ptr==nullptr)
     {
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"Invalid Pointer\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
         return;
     }
     int offset  =0;
@@ -300,7 +367,9 @@ void assignArr(PageTableEntry* ptr, int index, int value)
     {
         if(value !=0 && value!=1)
         {
+            Pthread_mutex_lock(&bk->loggingLock);
             cout<<"Value Being Assigned Cannot Fit In DataType\n";
+            Pthread_mutex_unlock(&bk->loggingLock);
             return;
         }
         int byteChunkInd = ptr->logicalAddr +  index/8;
@@ -313,22 +382,29 @@ void assignArr(PageTableEntry* ptr, int index, int value)
             byteChunk = byteChunk^(1<<bitPos);
         }
         logicalMemChar[FourByteChunkInd] = byteChunk;
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"- Assign value at array index\n";
         cout<<ptr->name<<"["<<index<<"] := "<<value<<"\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
     }
     else 
     {
         assignValueInMem(ptr->logicalAddr+offset*index,typeSize[type],type,value);
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"- Assign value at array index\n";
         cout<<ptr->name<<"["<<index<<"] := "<<value<<"\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
     }
 }
 
 int arrValue(PageTableEntry* ptr, int index)
 {
-    if(ptr==NULL)
+    if(ptr==nullptr)
     {
+        Pthread_mutex_lock(&bk->loggingLock);   
         cout<<"Invalid Pointer\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
+        
         return -1;
     }
     int offset  =0;
@@ -384,9 +460,11 @@ int arrValue(PageTableEntry* ptr, int index)
 
 void freeElementMem(PageTableEntry* ptr, int destroy)
 {
-    if(ptr==NULL)
+    if(ptr==nullptr)
     {
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"Invalid Pointer\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
         return;
     }   
     
@@ -405,7 +483,12 @@ void freeElementMem(PageTableEntry* ptr, int destroy)
                 space = typeSize[ptr->type] * ptr->numElements ;
                 break;
             case MediumInt:
-                space = 4 * ptr->numElements ;
+                if(ptr->numElements == 1){
+                    space = typeSize[ptr->type];
+                }
+                else{
+                    space = typeSize[Int] * ptr->numElements;
+                }
                 break;
             case Boolean:
                 space = (ptr->numElements+7)/8;
@@ -423,7 +506,7 @@ void freeElementMem(PageTableEntry* ptr, int destroy)
     // Check if free space starts right after
     Node<pair<int,int>>* intervalEntryBefore = bk->freeIntervals.lower_bound({intervalEntry.second,-1});
     
-    if(intervalEntryBefore!=NULL && intervalEntryBefore->data.first == intervalEntry.second)
+    if(intervalEntryBefore!=nullptr && intervalEntryBefore->data.first == intervalEntry.second)
     {
         pair<int,int>pp = intervalEntryBefore->data;
         bk->freeIntervals.remove(pp);
@@ -438,7 +521,7 @@ void freeElementMem(PageTableEntry* ptr, int destroy)
     {
         int mid = (low+high)/2;
         Node<pair<int,int>>*p= bk->freeIntervals.lower_bound({mid,-1});
-        if(p==NULL || p->data.first >= start)
+        if(p==nullptr || p->data.first >= start)
         {
             high = mid-1;
         }
@@ -467,7 +550,7 @@ void freeElementMem(PageTableEntry* ptr, int destroy)
             // Check if free space starts right after
             Node<pair<int,int>>* intervalEntryBefore = bk->freeIntervals.lower_bound({intervalEntry.second,-1});
             
-            if(intervalEntryBefore!=NULL && intervalEntryBefore->data.first == intervalEntry.second)
+            if(intervalEntryBefore!=nullptr && intervalEntryBefore->data.first == intervalEntry.second)
             {
                 pair<int,int>pp = intervalEntryBefore->data;
                 bk->freeIntervals.remove(pp);
@@ -482,7 +565,7 @@ void freeElementMem(PageTableEntry* ptr, int destroy)
             {
                 int mid = (low+high)/2;
                 Node<pair<int,int>>*p= bk->freeIntervals.lower_bound({mid,-1});
-                if(p==NULL || p->data.first >= start)
+                if(p==nullptr || p->data.first >= start)
                 {
                     high = mid-1;
                 }
@@ -520,13 +603,19 @@ void freeElementMem(PageTableEntry* ptr, int destroy)
 
     }
 
+    bk->freeMem += space;
     //bk->freeIntervals.inorder();
     if(destroy){
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"- Page table entry deleted (memory freed) for: \'"<<ptr->name<<"\'\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
         ptr->scope = -2;
     }
+    Pthread_mutex_lock(&bk->loggingLock);
     cout<<"Freed up Space between "<<intervalEntry.first<<" and "<<intervalEntry.second<<"\n";
     cout<<"Free Space Segment Created Between "<<start<<" and "<<end<<"\n\n";
+    // diagnose();
+    Pthread_mutex_unlock(&bk->loggingLock);
 
 }
 
@@ -556,8 +645,16 @@ void gcInit(){
     pthread_create(&(bk->gcTid), &attr, gcRunner, param);
 }
 
+void diagnose(){
+    Pthread_mutex_lock(&bk->loggingLock);
+    timeval tv;
+    gettimeofday(&tv, NULL);
+    printf("+ Amt of free space left in memory : %d ; Timestamp : %lf ms", bk->freeMem, (tv.tv_sec - bk->st.tv_sec)*1000 + (double)(tv.tv_usec - bk->st.tv_usec)/1000);
+    Pthread_mutex_unlock(&bk->loggingLock);
+}
+
 void gcStop(){
-    pthread_join((bk->gcTid), NULL);
+    pthread_join((bk->gcTid), nullptr);
 }
 
 void gcRun(int opt){
@@ -565,48 +662,73 @@ void gcRun(int opt){
     int i = pt->numEntries - 1;
     /* If running in main thread */
     if(opt == 0){
+        Pthread_mutex_lock(&bk->loggingLock);
+        cout<<"***** Garbage collector will unwind the stack and free up corresponding memory *****\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
+
         if(i >= 0)
-            pthread_mutex_lock(&pt->pteList[i].mutexLock);
+            Pthread_mutex_lock(&pt->pteList[i].mutexLock);
         while(i >= 0 && pt->pteList[i].scope < 0){
             if(pt->pteList[i].scope == -1){
-                pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+                Pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+
+                Pthread_mutex_lock(&bk->compactLock);
                 freeElementMem(&(pt->pteList[i]), 1);
+                Pthread_mutex_unlock(&bk->compactLock);
             }
             else{
-                pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+                Pthread_mutex_unlock(&pt->pteList[i].mutexLock);
             }
 
             pt->numEntries--;
 
             i--;
             if(i >= 0)
-                pthread_mutex_lock(&pt->pteList[i].mutexLock);
+                Pthread_mutex_lock(&pt->pteList[i].mutexLock);
         }
         if(i >= 0)
-            pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+            Pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+        
+        Pthread_mutex_lock(&bk->loggingLock);
+        cout<<"***** Stack unwinding done *****\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
     }
     /* If running in garbage collector thread */
     else{
+        Pthread_mutex_lock(&bk->loggingLock);
+        cout<<"***** Garbage collector will free up space in logical memory (sweep phase) *****\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
+        
         for(int i = 0; i < pt->numEntries; i++){
-            pthread_mutex_lock(&pt->pteList[i].mutexLock);
+            Pthread_mutex_lock(&pt->pteList[i].mutexLock);
             if(pt->pteList[i].scope == -1){
-                pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+                Pthread_mutex_unlock(&pt->pteList[i].mutexLock);
 
+                Pthread_mutex_lock(&bk->compactLock);
                 freeElementMem(&(pt->pteList[i]), 1);
+                Pthread_mutex_unlock(&bk->compactLock);
             }
             else{
-                pthread_mutex_unlock(&pt->pteList[i].mutexLock);
+                Pthread_mutex_unlock(&pt->pteList[i].mutexLock);
             }
         }
+
+        Pthread_mutex_lock(&bk->loggingLock);
+        cout<<"***** Sweep phase done *****\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
     }
 }
 
 void *gcRunner(void *param){
     while(1){
+        Pthread_mutex_lock(&bk->loggingLock);
+        cout<<"***** Garbage collection thread wakes up *****\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
+
         gcRun(1);
         compactMem();
         timespec ts = {0, 10000000};
-        nanosleep(&ts, NULL);
+        nanosleep(&ts, nullptr);
     }
 }
 
@@ -629,8 +751,8 @@ void copyBlock(int sz, int logicalSource, int logicalDest)
     unsigned int sourceWord = bk->logicalMem[sourceWordIdx];
     unsigned int destWord = bk->logicalMem[destWordIdx];
     unsigned int allones = (1ll << 32) - 1;
-    unsigned int sourceMask = (((1ll << (8 * sz)) - 1));
-    unsigned int destMask = (allones ^ (((1ll << (8 * sz)) - 1) << (4 - destWordOffset - sz)));
+    unsigned int sourceMask = (((1ll << (8 * sz)) - 1) << (8 * (4 - sourceWordOffset - sz))); 
+    unsigned int destMask = (allones ^ (((1ll << (8 * sz)) - 1) << (8 * (4 - destWordOffset - sz))));
     sourceWord &= sourceMask;
     destWord &= destMask;
     if(sourceWordOffset < destWordOffset){
@@ -647,7 +769,7 @@ void compactMem(){
     AVLTree<pair<int, int>> *fs = &(bk->freeSpaces);
     PageTable *pt = &(bk->pageTable);
     
-    pthread_mutex_lock(&(bk->compactLock));
+    Pthread_mutex_lock(&(bk->compactLock));
 
     pair<int, int> temp2 = {-1,-1};
     fs->secondLast(&temp2);
@@ -658,9 +780,11 @@ void compactMem(){
     if(start + largest == bk->sizeOfMem){
         largest = secondLargest;
     }
+    printf("Here you go : %d\n", largest);
     if(largest >= LARGE_HOLE_SIZE){
-        
+        Pthread_mutex_lock(&bk->loggingLock);
         cout<<"Found a large hole of size : "<<largest<<" bytes\nCompacting...\n\n";
+        Pthread_mutex_unlock(&bk->loggingLock);
 
         PageTableEntry *ptCopy[pt->numEntries];
         int fldno  =0;
@@ -682,31 +806,75 @@ void compactMem(){
         
         for(int i=0; i < fldno; i++){
             if(ptCopy[i]->scope >= 0){
-                int newLogAddr = bk->findBestFitFreeSpace(ptCopy[i]->numElements * typeSize[ptCopy[i]->type]);
-                
+                int spaceneeded = 0;
                 int n = ptCopy[i]->numElements;
                 int oldLogAddr = ptCopy[i]->logicalAddr;
                 int size = typeSize[ptCopy[i]->type];
+
+                switch(ptCopy[i]->type)
+                {
+                    case Int: 
+                    case Char:
+                        spaceneeded = n*size;
+                        break;
+                    case MediumInt:
+                        if(n == 1){
+                            spaceneeded = typeSize[ptCopy[i]->type];
+                        }
+                        else{
+                            spaceneeded = n*typeSize[Int];
+                        }
+                        break;
+                    case Boolean:
+                        spaceneeded = ((n+7)/8);
+                        break;
+                }
+
+                int newLogAddr = bk->findBestFitFreeSpace(spaceneeded);
+                bk->freeMem -= spaceneeded;
                 
                 int j=0;
-                for(j=0; j<(n*size)/4; j++){
-                    copyBlock(4, oldLogAddr + j*4, newLogAddr + j*4);
+                if(ptCopy[i]->type == Boolean){
+                    for(j = 0; j < (n / 32); j++){
+                        copyBlock(4, oldLogAddr + j*4, newLogAddr + j*4);
+                    }
+                    if(n % 32){
+                        copyBlock(1, oldLogAddr + j*4, newLogAddr + j*4);
+                    }
                 }
-                if(size < 4){
-                    copyBlock(size, oldLogAddr + j*4, newLogAddr + j*4);
+                else if(ptCopy[i]->type == MediumInt){
+                    if(n > 1){
+                        for(j = 0; j < n; j++){
+                            copyBlock(4, oldLogAddr + j*4, newLogAddr + j*4);
+                        }
+                    }
+                    else{
+                        copyBlock(size, oldLogAddr + j*4, newLogAddr + j*4);
+                    }
                 }
+                else{
+                    for(j=0; j<(n*size)/4; j++){
+                        copyBlock(4, oldLogAddr + j*4, newLogAddr + j*4);
+                    }
+                    if((n*size)%4){
+                        copyBlock(size, oldLogAddr + j*4, newLogAddr + j*4);
+                    }
+                }
+
                 ptCopy[i]->logicalAddr = newLogAddr;
-                
+                Pthread_mutex_lock(&bk->loggingLock);
                 cout<<"- Page table entry changed for: \'"<<ptCopy[i]->name<<"\'\n";
                 cout<<"logical address : "<<newLogAddr<<"\n";
+                // diagnose();
+                Pthread_mutex_unlock(&bk->loggingLock);
             }
         }
         cout<<"\n";
 
-        pthread_mutex_unlock(&(bk->compactLock));
+        Pthread_mutex_unlock(&(bk->compactLock));
     }
     else{
-        pthread_mutex_unlock(&(bk->compactLock));
+        Pthread_mutex_unlock(&(bk->compactLock));
         return;
     }
 }

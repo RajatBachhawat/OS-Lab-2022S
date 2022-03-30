@@ -5,7 +5,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <unistd.h>
+#include <signal.h>
 #include <pthread.h>
+#include <sys/time.h>
 #include <utility>
 #include <algorithm>
 #include "avl.h"
@@ -65,7 +67,7 @@ public:
      * pair<int, int> : <space, start index>
      */
     AVLTree<pair<int, int>> freeSpaces;
-    /* Starting address of memory created with createMem()
+    /* Starting address of memory created with createMem(). This is what we always use to access the memory
      * logicalMem is a unsigned int * because we always access memory in chunks of 4 bytes (word alignment)
      */
     unsigned int *logicalMem;
@@ -75,10 +77,16 @@ public:
     int currScope = 0;
     /* Size of memory allocated */
     int sizeOfMem = 0;
+    /* Free space left */
+    int freeMem = 0;
     /* Thread ID of the garbage collector thread */
     pthread_t gcTid;
     /* Mutex lock to be used during compaction done by garbage collector */
     pthread_mutex_t compactLock;
+    /* Mutex lock to be used for printing log messages */
+    pthread_mutex_t loggingLock;
+    /* Time of start */
+    timeval st;
     int findBestFitFreeSpace(unsigned int size);
 };
 
@@ -92,6 +100,9 @@ int arrValue(PageTableEntry* ptr, int index);
 void freeElement(PageTableEntry* ptr);
 void freeElementMem(PageTableEntry* ptr, int destroy);
 void copyBlock(int sz, int olda, int newa);
+void diagnose();
+int Pthread_mutex_lock(pthread_mutex_t *__mutex);
+int Pthread_mutex_unlock(pthread_mutex_t *__mutex);
 
 void gcInit();
 void gcStop();

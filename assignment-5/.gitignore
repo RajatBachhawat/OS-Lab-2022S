@@ -5,3 +5,5 @@
 *.o
 *.a
 *.out
+*.csv
+*.txt

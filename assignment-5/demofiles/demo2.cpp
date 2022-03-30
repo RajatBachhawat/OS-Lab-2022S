@@ -1,5 +1,5 @@
 #include <iostream>
-#include "memlab.h"
+#include "../memlab.h"
 
 PageTableEntry *fibonacci(PageTableEntry *k, PageTableEntry *fibArr){
     assignArr(fibArr, 0, 1);
@@ -22,6 +22,9 @@ PageTableEntry *fibnacciProduct(PageTableEntry *k){
     startScope();
     PageTableEntry *arrrr = fibonacci(k, fibArr);
     endScope();
+    // sleep(1);
+    // gcRun(0);
+    diagnose();
     freeElementMem(arrrr, 1);
     // printPageTable();
     
@@ -55,9 +58,11 @@ int main(int argc, char **argv){
     endScope();
     // printPageTable();
     gcRun(0);
+    diagnose();
     // printPageTable();
     cout << "Product of first " << varValue(k) << " fibonacci nos. = " << varValue(retval) << "\n";
     endScope();
     gcRun(0);
+    diagnose();
     return 0;
 }
