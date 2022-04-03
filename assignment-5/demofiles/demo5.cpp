@@ -4,8 +4,8 @@
 using namespace std;
 
 int main(){
-    createMem(400000);
-    PageTableEntry *a1 = createArr("a1", Int, 20000);
+    createMem(4000000);
+    PageTableEntry *a1 = createArr("a1", Int, 200000);
     PageTableEntry *a2 = createVar("a2", Char);
     assignVar(a2, 27);
     PageTableEntry *a3 = createVar("a3", MediumInt);

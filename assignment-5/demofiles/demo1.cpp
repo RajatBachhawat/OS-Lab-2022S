@@ -9,25 +9,30 @@ void func1(PageTableEntry* ptr1, PageTableEntry* ptr2)
     char name[32];
     sprintf(name,"arr%d",glob);    
     PageTableEntry* arr = createArr(name,ptr1->type,50000);
+    diagnose();
     sprintf(name,"i%d",glob);
     glob++;
     PageTableEntry* i = createVar(name,Int);
     assignVar(i,0);
-    for(;;)
+    while(varValue(i) < 50000)
     {
         assignArr(arr,varValue(i),rand()%2);
         assignVar(i,varValue(i)+1);
-        if(varValue(i) == 50000)
-            break;
     }
     endScope();
+    #ifdef GC_STACK_POP
     gcRun(0);
+    #endif
+    diagnose();
 }
 
 int main(){
 
     createMem(250000000);
+    
+    #ifdef GC
     gcInit();
+    #endif
 
     // Medium Int
     PageTableEntry *p1 = createVar("x1",MediumInt);

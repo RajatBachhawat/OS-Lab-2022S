@@ -16,34 +16,38 @@
 
 const int MAX_NAME_SIZE = 32;
 const int PAGE_TABLE_SIZE = 10000;
-const int LARGE_HOLE_SIZE = 5120;
+const int LARGE_HOLE_SIZE = 200000;
+const int GC_SLEEP_TIME = 10000000;
 
 enum DataType {
     Int, MediumInt, Char, Boolean
 };
 
-struct FreeInterval {
-    int start;
-    int end;
-};
-
-struct FreeSpace {
-    unsigned int spaceSize;
-    int start;
-};
-
 class PageTableEntry {
 public:
+    /* Constructor */
     PageTableEntry();
+    /* Destructor */
     ~PageTableEntry();
+    /* Copy assignment operator */
     PageTableEntry &operator=(const PageTableEntry &other);
+    
+    /* Name of the variable / array */
     char name[MAX_NAME_SIZE];
+    /* Type of the variable / array */
     DataType type;
-    int localAddr; // TODO : int or long long?
+    /* Local address of variable */
+    long long localAddr;
+    /* Logical address of variable */
     int logicalAddr;
+    /* Scope of the variable (controlled by global curr_scope) */
     int scope;
+    /* Number of elements in array */
     int numElements;
-    pthread_mutex_t mutexLock;
+    /* Lock for manipulation of scope */
+    pthread_mutex_t scopeLock;
+    /* Lock for manipulation of logical address */
+    pthread_mutex_t addrLock;
 };
 
 class PageTable {
@@ -87,7 +91,6 @@ public:
     pthread_mutex_t loggingLock;
     /* Time of start */
     timeval st;
-    int findBestFitFreeSpace(unsigned int size);
 };
 
 void createMem(int memSize);
@@ -98,15 +101,12 @@ PageTableEntry* createArr(char arrName[32], DataType type, int elements);
 void assignArr(PageTableEntry* ptr, int index, int value);
 int arrValue(PageTableEntry* ptr, int index);
 void freeElement(PageTableEntry* ptr);
-void freeElementMem(PageTableEntry* ptr, int destroy);
-void copyBlock(int sz, int olda, int newa);
-void diagnose();
 int Pthread_mutex_lock(pthread_mutex_t *__mutex);
 int Pthread_mutex_unlock(pthread_mutex_t *__mutex);
+void diagnose();
 
 void gcInit();
 void gcStop();
-void *gcRunner(void *param);
 void gcRun(int opt);
 void endScope();
 void startScope();

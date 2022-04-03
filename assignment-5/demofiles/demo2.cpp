@@ -1,40 +1,39 @@
 #include <iostream>
 #include "../memlab.h"
 
-PageTableEntry *fibonacci(PageTableEntry *k, PageTableEntry *fibArr){
+void fibonacci(PageTableEntry *k, PageTableEntry *fibArr){
     assignArr(fibArr, 0, 1);
     assignArr(fibArr, 1, 1);
-    PageTableEntry *arrrr = createArr("arrrr", Char, 10121);
     PageTableEntry *i = createVar("i", Int);
+    diagnose();
     // printPageTable();
     assignVar(i, 2);
     while(varValue(i) <= varValue(k)){
         assignArr(fibArr, varValue(i), arrValue(fibArr, varValue(i) - 1) + arrValue(fibArr, varValue(i) - 2));
         assignVar(i, varValue(i) + 1);
     }
-    return arrrr;
 }
 
 PageTableEntry *fibnacciProduct(PageTableEntry *k){
+    diagnose();
     PageTableEntry *fibArr = createArr("fibArr", Int, varValue(k) + 1);
     // printPageTable();
 
     startScope();
-    PageTableEntry *arrrr = fibonacci(k, fibArr);
+    fibonacci(k, fibArr);
     endScope();
-    // sleep(1);
-    // gcRun(0);
+    #ifdef GC_STACK_POP
+    gcRun(0);
+    #endif
     diagnose();
-    freeElementMem(arrrr, 1);
-    // printPageTable();
     
     PageTableEntry *product = createVar("product", Int);
     // printPageTable();
     assignVar(product, 1);
     PageTableEntry *j = createVar("j", Int);
+    diagnose();
     // printPageTable();
     assignVar(j, 0);
-    compactMem();
     while(varValue(j) <= varValue(k)){
         assignVar(product, arrValue(fibArr, varValue(j)) * varValue(product));
         assignVar(j, varValue(j) + 1);
@@ -45,24 +44,33 @@ PageTableEntry *fibnacciProduct(PageTableEntry *k){
 
 int main(int argc, char **argv){
     createMem(20000);
+
+    #ifdef GC
     gcInit();
+    #endif
+    
     startScope();
     PageTableEntry *k = createVar("k", Int);
     // printPageTable();
     assignVar(k, atoi(argv[1]));
     PageTableEntry *retval = createVar("retval", Int);
     // printPageTable();
+    diagnose();
     startScope();
     PageTableEntry *product = fibnacciProduct(k);
     assignVar(retval, varValue(product));
     endScope();
     // printPageTable();
+    #ifdef GC_STACK_POP
     gcRun(0);
+    #endif
     diagnose();
     // printPageTable();
-    cout << "Product of first " << varValue(k) << " fibonacci nos. = " << varValue(retval) << "\n";
+    printf("Product of first %d fibonacci nos. = %d\n", varValue(k), varValue(retval));
     endScope();
+    #ifdef GC_STACK_POP
     gcRun(0);
+    #endif
     diagnose();
     return 0;
 }
