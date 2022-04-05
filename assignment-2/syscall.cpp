@@ -245,6 +245,7 @@ void stopShell()
         historyFile<<commands.back()<<"\n";
         commands.pop_back();
     }
+    historyFile.close();
     exit(0);
 }
 

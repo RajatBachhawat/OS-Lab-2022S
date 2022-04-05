@@ -109,8 +109,8 @@ void sigchld_handler(int sig)
     return;
 }
 
-void clear(char *buf){
-    for(int i=0; i<MAXFILENAMELEN; i++)
+void clear(char *buf, int sz){
+    for(int i=0; i<sz; i++)
         buf[i]='\0';
 }
 
@@ -134,7 +134,7 @@ int autocomplete(char *line_buf){
     char candidates[MAXDIRSIZE][MAXFILENAMELEN];
     char *buf;
     
-    clear(lcp);
+    clear(lcp, MAXFILENAMELEN);
     char *ptr = line_buf;
     buf = ptr;
     char prevch = '\0';
@@ -187,7 +187,7 @@ int autocomplete(char *line_buf){
         printf("Enter the number corresponding to a file (1 to %d): ", num_matches); fflush(stdout);
         scanf("%d", &option_num);
         if(option_num < 1 || option_num > num_matches){
-            printf("Out of range error");
+            printf("Index #%d is out of range\n", option_num);
             return -1;
         }
 
@@ -227,7 +227,7 @@ int main()
         for(int i=0;i<MAXLINE;i++){
             cmdline[i]='\0';
         }
-        int num_matches = 0;
+        int num_matches = -1;
         int history_displayed = 0;
         while (1) {
             c = getch();
@@ -246,7 +246,7 @@ int main()
                 history_displayed = 1;
                 break;
             }
-            else if(c == KEY_BACKSPACE) {
+            else if(c == KEY_ERASE || c == KEY_BACKSPACE) {
                 putchar('\b');
                 putchar(' ');
                 putchar('\b');
@@ -265,12 +265,18 @@ int main()
                 putchar('\n');
                 stopShell();
             }
-            else {
+            else if(c == KEY_ESCAPE){
+                if(getch() == '['){
+                    getch();
+                }
+            }
+            else if(c >= 32) { /* Printing Characters of the ASCII Table */
                 putchar(c);
                 cmdline[cmdline_cnt++] = c;
             }
             prevc = c;
         }
+        prevc = c;
 
         if(history_displayed == 1){
             continue;
@@ -279,25 +285,27 @@ int main()
         if(strcmp(cmdline,"quit\n")==0)
             stopShell();
     
-        /* Add to history*/
-        string command(cmdline);
-        
-        addToHist(commands,command);
-        char* firstSpace;
-        watchcmd = 0;
-        char* temp = cmdline;
-        while(*temp ==' ')
-            temp++;
-        if(firstSpace = strchr(temp,' '))
-        {
-            *firstSpace = '\0';
-            if(strcmp(temp,"multiWatch")==0)
-                watchcmd =1;
-            *firstSpace = ' ';
-        }
-        /* Evaluate if the cmd is non-empty (1 for the newline at the end)*/
+        /* Go further if the cmd is non-empty (1 for the newline at the end)*/
         if(strlen(cmdline) > 1){
+            /* Add to history*/
+            string command(cmdline);
+            
+            addToHist(commands,command);
+            char* firstSpace;
+            watchcmd = 0;
+            char* temp = cmdline;
+            while(*temp ==' ')
+                temp++;
+            if(firstSpace = strchr(temp,' '))
+            {
+                *firstSpace = '\0';
+                if(strcmp(temp,"multiWatch")==0)
+                    watchcmd =1;
+                *firstSpace = ' ';
+            }
+            /* Check if command is multiWatch */
             if(watchcmd == 0)
+                /* Evaluate the command */
                 eval(cmdline);
             else 
             {
@@ -571,7 +579,7 @@ int watchParser(char* buf, watchCommand* wcs )
         if(buf[ind] == '>' && openQuote ==0)
         {
             char temp[MAXLINE];
-            clear(temp);
+            clear(temp, MAXLINE);
             int tempind = 0;
             for(int j = ind+1; buf[j]!='\n'; j++)
             {
@@ -649,7 +657,7 @@ void watcheval(int sz, watchCommand* wcs )
     {
         arr[cmdno] = filenames[cmdno].c_str();
         Open(arr[cmdno], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        tempfile_rfds[cmdno] = Open(arr[cmdno], O_RDONLY, 0);
+        tempfile_rfds[cmdno] = Open(arr[cmdno], O_RDWR, 0);
         int watch_desc = inotify_add_watch(inotfd, arr[cmdno], IN_MODIFY | IN_CLOSE_WRITE);
         watchmap[watch_desc] = cmdno;
     }
@@ -667,13 +675,11 @@ void watcheval(int sz, watchCommand* wcs )
             if(event->mask & (IN_MODIFY & ~IN_CLOSE_WRITE))
             {
                 char buf[10000];
-                clear(buf);
-                int index = watchmap[event->wd];
-                if(running)
-                    printf("%s %u\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ",wcs[index].argv,(unsigned)time(NULL),index+1);
-                
+                clear(buf,10000);
+                int index = watchmap[event->wd];                
                 read(tempfile_rfds[watchmap[event->wd]], buf, 10000);
-                if(running){
+                if(running && strlen(buf) > 0){
+                    printf("\"%s\", %ld :\n <-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-<-\n Output : %d\n ", wcs[index].argv, time(NULL), index+1);
                     printf("%s\n",buf);
                     printf("->->->->->->->->->->->->->->->->->->->\n");
                 }
@@ -696,6 +702,7 @@ void watcheval(int sz, watchCommand* wcs )
     for(int cmdno =0; cmdno < sz; cmdno++)
     {
         const char * c = filenames[cmdno].c_str();
+        // Close(tempfile_rfds[cmdno]);
         remove(c);
     }      
     pids.clear(); 
